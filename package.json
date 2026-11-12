@@ -1,0 +1,34 @@
+{
+  "name": "magpie-provider-eaichat",
+  "version": "0.1.0",
+  "description": "云智助手（eaichat.ctyun.cn）Token 中心接入 magpie：账号密码登录、自动续登、每日签到、用量显示与模型转发",
+  "type": "module",
+  "main": "./src/index.ts",
+  "scripts": {
+    "test": "node --test --experimental-strip-types --no-warnings tests/*.test.ts",
+    "check": "tsc --noEmit"
+  },
+  "keywords": [
+    "magpie",
+    "magpie-plugin",
+    "opencode",
+    "opencode-plugin",
+    "eaichat",
+    "ctyun",
+    "云智助手",
+    "provider"
+  ],
+  "license": "MIT",
+  "magpie": {
+    "name": "云智助手 EAIChat",
+    "summary": {
+      "zh": "云智助手（天翼云）Token 中心：账号密码登录、自动续登、每日签到送 Token、用量显示与模型转发。",
+      "en": "EAIChat (CTYun) Token Center: account sign-in with auto-renewal, daily check-in, usage display and model relay."
+    },
+    "maxConcurrency": 1
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "typescript": "^5.9.3"
+  }
+}
