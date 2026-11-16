@@ -21,8 +21,7 @@
 ## 安装
 
 ```sh
-magpie plugin add ./magpie-provider-eaichat
-# 或发布到 npm 后：magpie plugin add magpie-provider-eaichat
+magpie plugin add github:4x25/magpie-provider-eaichat
 magpie plugin login eaichat
 ```
 

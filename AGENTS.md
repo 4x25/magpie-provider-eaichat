@@ -2,6 +2,8 @@
 
 magpie 插件：云智助手（eaichat.ctyun.cn）Token 中心接入 magpie。TypeScript + ESM，无构建步骤，零运行时依赖（只用 `node:crypto` 和全局 `fetch`）。
 
+面向用户的安装说明统一使用 `magpie plugin add github:4x25/magpie-provider-eaichat`。
+
 ## 命令
 
 ```sh

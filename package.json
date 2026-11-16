@@ -21,6 +21,7 @@
   "license": "MIT",
   "magpie": {
     "name": "云智助手 EAIChat",
+    "icon": "https://eaichat.ctyun.cn/chat/favicon.ico",
     "summary": {
       "zh": "云智助手（天翼云）Token 中心：账号密码登录、自动续登、每日签到送 Token、用量显示与模型转发。",
       "en": "EAIChat (CTYun) Token Center: account sign-in with auto-renewal, daily check-in, usage display and model relay."
