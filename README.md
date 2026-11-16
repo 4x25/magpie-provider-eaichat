@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **模型转发**：6 个模型（`deepseek-v4.1-flash`、`glm-5.3-flash`、`deepseek-v4-flash-0731-oc`、`deepseek-v4-pro-0813-oc`、`glm-5.3-oc`、`qwen-3.8-flash`），默认走 Anthropic Messages 端点，可在插件选项中切换为 OpenAI Chat Completions 端点（从下一个请求起生效）。
+- **模型转发**：6 个模型（见下方模型目录），默认走 Anthropic Messages 端点，可在插件选项中切换为 OpenAI Chat Completions 端点（从下一个请求起生效）。
 - **登录**：账号 + 密码（IAM → CAS → ticketAuthorize 链路），API Key 可选。
 - **自动续登**：JWT 到期前 6 小时自动重走登录链路；网页会话中途失效时自动重登并重试一次。
 - **每日签到**：通过 magpie 自带的签到调度（每个北京日一次），领取 `taskDefId=3001` 的「每日签到」Token 奖励。
@@ -24,6 +24,21 @@
 magpie plugin add github:4x25/magpie-provider-eaichat
 magpie plugin login eaichat
 ```
+
+## 模型目录
+
+| 上游模型 ID | 展示名称 | 上下文（tokens） |
+| --- | --- | ---: |
+| `deepseek-v4.1-flash` | DeepSeek-V4.1-Flash | 1,048,576 |
+| `glm-5.3-flash` | GLM-5.3-Flash | 1,000,000 |
+| `deepseek-v4-flash-0731-oc` | DeepSeek-V4-Flash | 1,048,576 |
+| `deepseek-v4-pro-0813-oc` | DeepSeek-V4-Pro | 1,048,576 |
+| `glm-5.3-oc` | GLM-5.3 | 1,000,000 |
+| `qwen-3.8-flash` | Qwen3.8-Flash | 1,000,000 |
+
+展示名称由模型的 `name` 提供，请求使用对应的上游模型 ID。magpie 根据 `limit.context` 自动显示灰色 `1M` / `1.0M` 徽标；两种协议共用同一份模型元数据。更新插件后，在供应商页面点击「重新获取模型」刷新展示。
+
+上下文规格核对于 2026-11-16：DeepSeek 参考 [astudio 同型号配置](https://github.com/magpie-community/plugins/tree/main/packages/astudio)，GLM 参考 [GLM-5.3](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3) / [GLM-5.3-Flash](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash)，Qwen 参考 [Qwen3.8-Flash](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)；数值口径同时核对 [models.dev](https://models.dev/api.json)。云智助手目录提供模型 ID，当前上下文声明采用上述公开规格。
 
 ## 每日签到
 
@@ -68,7 +83,7 @@ tests/         node --test 单元测试（含完整登录链路的假上游）
 
 ### 已知待校准项
 
-- 模型上下文/输出上限按各家族公版保守取值（128K / 8K）；上游 `/platform/cp/models` 未提供限额数值，如实际不符再调整。
+- 输出上限暂取 8K（8,192 tokens）；上游 `/platform/cp/models` 未提供限额数值，后续按服务端规格校准。
 - `addApiKey` 的创建路径未在真实账号实测（该账号已有同名 Key，走了复用路径）；响应字段名做了多候选兼容（`apiKey`/`key`/`keySecret` 等），列表回显字段已实测为 `apiKey`。
 
 ## License

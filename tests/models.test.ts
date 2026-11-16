@@ -15,6 +15,24 @@ test("模型目录：6 个模型，id 与上游一致", () => {
   }
 })
 
+test("模型目录：展示名称标准化并声明 1M 上下文", () => {
+  const models = modelsFor("anthropic")
+  const expected = {
+    "deepseek-v4.1-flash": ["DeepSeek-V4.1-Flash", 1_048_576],
+    "glm-5.3-flash": ["GLM-5.3-Flash", 1_000_000],
+    "deepseek-v4-flash-0731-oc": ["DeepSeek-V4-Flash", 1_048_576],
+    "deepseek-v4-pro-0813-oc": ["DeepSeek-V4-Pro", 1_048_576],
+    "glm-5.3-oc": ["GLM-5.3", 1_000_000],
+    "qwen-3.8-flash": ["Qwen3.8-Flash", 1_000_000],
+  } as const
+
+  for (const [id, [name, context]] of Object.entries(expected)) {
+    assert.equal(models[id].name, name)
+    assert.equal(models[id].limit.context, context)
+    assert.ok(models[id].limit.context >= 1_000_000)
+  }
+})
+
 test("anthropic 协议：npm 与 url", () => {
   const models = modelsFor("anthropic")
   const glm = models["glm-5.3-oc"]

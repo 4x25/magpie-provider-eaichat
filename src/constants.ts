@@ -42,22 +42,52 @@ export const DAILY_TASK_ID = 3001
 export const TOKEN_TASK_DISPLAY_TYPE = 5
 /**
  * 上游模型 id → 展示信息。
- * 上下文/输出上限按各家族公版取保守值（128K 上下文 / 8K 输出）；
- * 说明见 README：联调后如与 `/platform/cp/models` 不符再校准。
+ * 上下文按各模型公开规格声明，来源见 README 的模型目录。
  */
 export interface ModelInfo {
   id: string
   name: string
+  context: number
   reasoning: boolean
 }
 
 export const MODEL_IDS: ModelInfo[] = [
-  { id: "deepseek-v4.1-flash", name: "DeepSeek v4.1 Flash", reasoning: true },
-  { id: "glm-5.3-flash", name: "GLM 5.3 Flash", reasoning: true },
-  { id: "deepseek-v4-flash-0731-oc", name: "DeepSeek v4 Flash (0731 OC)", reasoning: true },
-  { id: "deepseek-v4-pro-0813-oc", name: "DeepSeek v4 Pro (0813 OC)", reasoning: true },
-  { id: "glm-5.3-oc", name: "GLM 5.3 OC", reasoning: true },
-  { id: "qwen-3.8-flash", name: "Qwen 3.8 Flash", reasoning: true },
+  {
+    id: "deepseek-v4.1-flash",
+    name: "DeepSeek-V4.1-Flash",
+    context: 1_048_576,
+    reasoning: true,
+  },
+  {
+    id: "glm-5.3-flash",
+    name: "GLM-5.3-Flash",
+    context: 1_000_000,
+    reasoning: true,
+  },
+  {
+    id: "deepseek-v4-flash-0731-oc",
+    name: "DeepSeek-V4-Flash",
+    context: 1_048_576,
+    reasoning: true,
+  },
+  {
+    id: "deepseek-v4-pro-0813-oc",
+    name: "DeepSeek-V4-Pro",
+    context: 1_048_576,
+    reasoning: true,
+  },
+  {
+    id: "glm-5.3-oc",
+    name: "GLM-5.3",
+    context: 1_000_000,
+    reasoning: true,
+  },
+  {
+    id: "qwen-3.8-flash",
+    name: "Qwen3.8-Flash",
+    context: 1_000_000,
+    reasoning: true,
+  },
 ]
 
 /** Anthropic Messages 基地址（不含 /v1，网关会补 /v1/messages）。 */
@@ -65,5 +95,4 @@ export const ANTHROPIC_BASE = "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthro
 /** OpenAI Chat Completions 基地址（网关拼 /chat/completions）。 */
 export const OPENAI_BASE = "https://eaichat.ctyun.cn/ai/platform/v2/cp"
 
-export const DEFAULT_CONTEXT = 128_000
 export const DEFAULT_OUTPUT = 8_192

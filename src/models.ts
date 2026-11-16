@@ -1,5 +1,5 @@
 /** 模型目录：6 个上游模型，按协议生成 OpenCode Model 形状。 */
-import { ANTHROPIC_BASE, DEFAULT_CONTEXT, DEFAULT_OUTPUT, MODEL_IDS, OPENAI_BASE } from "./constants.ts"
+import { ANTHROPIC_BASE, DEFAULT_OUTPUT, MODEL_IDS, OPENAI_BASE, type ModelInfo } from "./constants.ts"
 
 export type WireProtocol = "anthropic" | "openai"
 
@@ -14,12 +14,12 @@ export const WIRES: Record<WireProtocol, Wire> = {
 }
 
 /** 单个模型的声明（config 钩子与 models 钩子共用）。 */
-export function modelEntry(id: string, name: string, reasoning: boolean, wire: Wire) {
+export function modelEntry(model: ModelInfo, wire: Wire) {
   return {
-    name,
-    api: { id, url: wire.url, npm: wire.npm },
-    limit: { context: DEFAULT_CONTEXT, output: DEFAULT_OUTPUT },
-    reasoning,
+    name: model.name,
+    api: { id: model.id, url: wire.url, npm: wire.npm },
+    limit: { context: model.context, output: DEFAULT_OUTPUT },
+    reasoning: model.reasoning,
     tool_call: true,
     modalities: { input: ["text"], output: ["text"] },
   }
@@ -28,5 +28,5 @@ export function modelEntry(id: string, name: string, reasoning: boolean, wire: W
 /** 全量模型表。 */
 export function modelsFor(protocol: WireProtocol): Record<string, ReturnType<typeof modelEntry>> {
   const wire = WIRES[protocol]
-  return Object.fromEntries(MODEL_IDS.map((m) => [m.id, modelEntry(m.id, m.name, m.reasoning, wire)]))
+  return Object.fromEntries(MODEL_IDS.map((m) => [m.id, modelEntry(m, wire)]))
 }
