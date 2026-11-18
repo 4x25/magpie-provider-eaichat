@@ -58,7 +58,7 @@ test("插件钩子结构：config/provider/auth 齐全", async () => {
   assert.equal(typeof hooks.auth.checkin, "function")
   assert.equal(hooks.auth.refreshLead, 6 * 60 * 60 * 1000)
   assert.equal(hooks.auth.options[0].key, "use_openai")
-  assert.equal(hooks.auth.options[0].default, false)
+  assert.equal(hooks.auth.options[0].default, true)
 })
 
 test("登录方式：必填账号/密码 + 可选 API Key", async () => {
@@ -78,9 +78,18 @@ test("config 钩子声明供应商与模型，不覆盖用户配置", async () =
   const { hooks } = await makePlugin()
   const cfg: { provider?: Record<string, unknown> } = {}
   await hooks.config(cfg)
-  const p = cfg.provider![PROVIDER_ID] as { name: string; models: Record<string, unknown> }
+  const p = cfg.provider![PROVIDER_ID] as {
+    name: string
+    npm: string
+    api: string
+    models: Record<string, { api: { npm: string }; variants?: Record<string, unknown> }>
+  }
   assert.equal(p.name, "云智助手")
+  assert.equal(p.npm, "@ai-sdk/openai-compatible")
+  assert.equal(p.api, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
   assert.equal(Object.keys(p.models).length, 6)
+  assert.equal(p.models["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
+  assert.deepEqual(Object.keys(p.models["glm-5.3-oc"].variants ?? {}), ["low", "high", "max"])
   // ??= 不覆盖用户已有配置
   const cfg2 = { provider: { [PROVIDER_ID]: { name: "自定义" } } }
   await hooks.config(cfg2)
@@ -132,7 +141,7 @@ test("loader：返回 baseURL/apiKey/fetch（复用已有会话，不重复登�
     const logins = fake.counters.logins
     const loader = await hooks.auth.loader(async () => auth)
     assert.equal(loader.apiKey, "sk-eai-1")
-    assert.equal(loader.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1")
+    assert.equal(loader.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
     assert.equal(typeof loader.fetch, "function")
     // authorize 已收养会话：loader 不再登录
     assert.equal(fake.counters.logins, logins)
@@ -238,29 +247,36 @@ test("models：无 auth 返回声明列表；有 auth 时协议开关切换 npm"
     { api: { npm: string } }
   >
   assert.equal(Object.keys(declared).length, 6)
-  assert.equal(declared["glm-5.3-oc"].api.npm, "@ai-sdk/anthropic")
+  // 默认 OpenAI：思考档位只在 OpenAI 端点生效
+  assert.equal(declared["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
 
   await withFake(async () => {
-    const magpie = { option: (_p: string, key: string) => key === "use_openai" }
+    const magpie = { option: (_p: string, key: string) => key === "use_openai" ? false : undefined }
     const { hooks } = await makePlugin(magpie)
     const auth = await signInAs(hooks)
     const switched = (await hooks.provider.models({ models: {} }, { auth })) as Record<
       string,
       { api: { npm: string } }
     >
-    assert.equal(switched["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
+    assert.equal(switched["glm-5.3-oc"].api.npm, "@ai-sdk/anthropic")
   })
 })
 
-test("loader：协议开关切换 baseURL（magpie.option 与插件 options 两条路）", async () => {
+test("loader：默认 OpenAI；magpie.option 与插件 options 可切回 Anthropic", async () => {
   await withFake(async () => {
-    const magpie = { option: (_p: string, key: string) => key === "use_openai" }
-    const { hooks } = await makePlugin(magpie)
+    const { hooks } = await makePlugin()
     const auth = await signInAs(hooks)
     const loader = await hooks.auth.loader(async () => auth)
     assert.equal(loader.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
 
-    // plugins.json 的 options（CLI `magpie plugin options` 写入）也能切换
+    // GUI 开关关掉 -> Anthropic
+    const magpie = { option: (_p: string, key: string) => (key === "use_openai" ? false : undefined) }
+    const { hooks: hooksOff } = await makePlugin(magpie)
+    const authOff = await signInAs(hooksOff)
+    const loaderOff = await hooksOff.auth.loader(async () => authOff)
+    assert.equal(loaderOff.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1")
+
+    // plugins.json 的 options（CLI `magpie plugin options` 写入）也能关
     const hooks2 = await EAIChatPlugin(
       {
         client: {
@@ -268,10 +284,10 @@ test("loader：协议开关切换 baseURL（magpie.option 与插件 options 两�
           app: { log: async () => ({ data: undefined }) },
         },
       },
-      { use_openai: true },
+      { use_openai: false },
     )
     const auth2 = await signInAs(hooks2)
     const loader2 = await hooks2.auth.loader(async () => auth2)
-    assert.equal(loader2.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
+    assert.equal(loader2.baseURL, "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1")
   })
 })

@@ -10,7 +10,7 @@
 import { ANTHROPIC_BASE, API_KEY_NAME, DAILY_TASK_ID, OPENAI_BASE, PROVIDER_ID } from "./constants.ts"
 import { EaiChatClient, keyOfCreated } from "./eaichat.ts"
 import { asStoredAuth, buildAuth, errText, sessionOf, type StoredAuth } from "./state.ts"
-import { modelsFor, type WireProtocol } from "./models.ts"
+import { modelsFor, WIRES, type WireProtocol } from "./models.ts"
 import { usageOf } from "./usage.ts"
 import { claimedOf, planCheckin, planToOutcome, settleAfterRefused } from "./checkin.ts"
 import { relayFetch } from "./relay.ts"
@@ -65,17 +65,21 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
     } catch {
       /* 旧宿主 */
     }
-    return options.use_openai === true ? "openai" : "anthropic"
+    // 默认 OpenAI：思考档位（reasoning_effort / enable_thinking）只在 OpenAI 端点生效。
+    return options.use_openai === false ? "anthropic" : "openai"
   }
 
   return {
     config: async (cfg: { provider?: Record<string, unknown> }) => {
       cfg.provider ??= {}
-      cfg.provider[PROVIDER_ID] ??= {
-        name: "云智助手",
-        npm: "@ai-sdk/anthropic",
-        api: ANTHROPIC_BASE,
-        models: modelsFor("anthropic"),
+      if (!cfg.provider[PROVIDER_ID]) {
+        const wire = wireProtocol()
+        cfg.provider[PROVIDER_ID] = {
+          name: "云智助手",
+          npm: WIRES[wire].npm,
+          api: wire === "openai" ? OPENAI_BASE : ANTHROPIC_BASE,
+          models: modelsFor(wire),
+        }
       }
     },
 
@@ -86,7 +90,7 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
         const declared =
           provider?.models && Object.keys(provider.models).length > 0
             ? provider.models
-            : modelsFor("anthropic")
+            : modelsFor(wireProtocol())
         if (!ctx?.auth) return declared
 
         const auth = asStoredAuth(ctx.auth)
@@ -118,11 +122,11 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
           label: "Use OpenAI Chat Completions protocol",
           labels: { zh: "使用 OpenAI Chat Completions 协议" },
           description:
-            "Off (default) talks to the Anthropic Messages endpoint; on talks to the OpenAI chat completions endpoint. Takes effect from the next request.",
+            "On (default) talks to the OpenAI Chat Completions endpoint, which carries thinking levels; off talks to the Anthropic Messages endpoint. Takes effect from the next request.",
           descriptions: {
-            zh: "关闭（默认）走 Anthropic Messages 端点；打开走 OpenAI chat completions 端点。从下一个请求起生效。",
+            zh: "打开（默认）走 OpenAI Chat Completions 端点，可用思考档位；关闭走 Anthropic Messages 端点。从下一个请求起生效。",
           },
-          default: false,
+          default: true,
           placement: "top",
         },
       ],

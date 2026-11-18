@@ -41,52 +41,47 @@ export const DAILY_TASK_ID = 3001
 /** Token 任务列表 displayTypes 过滤值。 */
 export const TOKEN_TASK_DISPLAY_TYPE = 5
 /**
- * 上游模型 id → 展示信息。
- * 上下文按各模型公开规格声明，来源见 README 的模型目录。
+ * 上游模型 id → 展示信息与 models.dev 规范模型 id。
+ * 上下文、最大输出、多模态与思考档位不在这里写死，由
+ * `npm run update:models` 从 models.dev 的规范模型条目生成。
  */
 export interface ModelInfo {
   id: string
   name: string
-  context: number
-  reasoning: boolean
+  /** models.dev 的 `canonical_model_id`（如 deepseek/deepseek-v4.1-flash）。 */
+  canonical: string
 }
 
 export const MODEL_IDS: ModelInfo[] = [
   {
     id: "deepseek-v4.1-flash",
     name: "DeepSeek-V4.1-Flash",
-    context: 1_048_576,
-    reasoning: true,
+    canonical: "deepseek/deepseek-v4.1-flash",
   },
   {
     id: "glm-5.3-flash",
     name: "GLM-5.3-Flash",
-    context: 1_000_000,
-    reasoning: true,
+    canonical: "zhipuai/glm-5.3-flash",
   },
   {
     id: "deepseek-v4-flash-0731-oc",
     name: "DeepSeek-V4-Flash",
-    context: 1_048_576,
-    reasoning: true,
+    canonical: "deepseek/deepseek-v4-flash-0731",
   },
   {
     id: "deepseek-v4-pro-0813-oc",
     name: "DeepSeek-V4-Pro",
-    context: 1_048_576,
-    reasoning: true,
+    canonical: "deepseek/deepseek-v4-pro-0813",
   },
   {
     id: "glm-5.3-oc",
     name: "GLM-5.3",
-    context: 1_000_000,
-    reasoning: true,
+    canonical: "zhipuai/glm-5.3",
   },
   {
     id: "qwen-3.8-flash",
     name: "Qwen3.8-Flash",
-    context: 1_000_000,
-    reasoning: true,
+    canonical: "alibaba/qwen3.8-flash",
   },
 ]
 
@@ -94,5 +89,3 @@ export const MODEL_IDS: ModelInfo[] = [
 export const ANTHROPIC_BASE = "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic"
 /** OpenAI Chat Completions 基地址（网关拼 /chat/completions）。 */
 export const OPENAI_BASE = "https://eaichat.ctyun.cn/ai/platform/v2/cp"
-
-export const DEFAULT_OUTPUT = 8_192

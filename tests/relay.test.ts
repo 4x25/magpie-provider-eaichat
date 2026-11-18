@@ -123,3 +123,142 @@ test("relayFetch：上游错误状态与正文原样返回", async () => {
     globalThis.fetch = original
   }
 })
+
+test("relayFetch：OpenAI 档位写入 enable_thinking + reasoning_effort", async () => {
+  const calls: Array<{ headers: Headers; body: string }> = []
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    calls.push({ headers: new Headers(init?.headers), body: String(init?.body ?? "") })
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/chat/completions", {
+      method: "POST",
+      headers: new Headers({
+        "x-magpie-effort": "high",
+        "content-length": "999",
+        "content-type": "application/json",
+      }),
+      body: JSON.stringify({ model: "glm-5.3-oc", messages: [] }),
+    })
+    const body = JSON.parse(calls[0].body)
+    assert.equal(body.enable_thinking, true)
+    assert.equal(body.reasoning_effort, "high")
+    assert.equal(calls[0].headers.get("x-magpie-effort"), null)
+    assert.equal(calls[0].headers.get("content-length"), null)
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test("relayFetch：OpenAI none 关掉思考", async () => {
+  let captured: Record<string, unknown> = {}
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    captured = JSON.parse(String(init?.body ?? "{}"))
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/chat/completions", {
+      method: "POST",
+      headers: { "x-magpie-effort": "none" },
+      body: JSON.stringify({ model: "qwen-3.8-flash", messages: [] }),
+    })
+    assert.equal(captured.enable_thinking, false)
+    assert.equal(captured.reasoning_effort, "none")
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test("relayFetch：Anthropic 档位写入 thinking 预算与 output_config", async () => {
+  let captured: Record<string, unknown> = {}
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    captured = JSON.parse(String(init?.body ?? "{}"))
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1/messages", {
+      method: "POST",
+      headers: { "x-magpie-effort": "high" },
+      body: JSON.stringify({ model: "deepseek-v4.1-flash", max_tokens: 4096, messages: [] }),
+    })
+    assert.deepEqual(captured.thinking, { type: "enabled", budget_tokens: 24_000 })
+    assert.deepEqual(captured.output_config, { effort: "high" })
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test("relayFetch：Anthropic none 关掉思考并保留 output_config 的其他字段", async () => {
+  let captured: Record<string, unknown> = {}
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    captured = JSON.parse(String(init?.body ?? "{}"))
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1/messages", {
+      method: "POST",
+      headers: { "x-magpie-effort": "none" },
+      body: JSON.stringify({
+        model: "deepseek-v4.1-flash",
+        thinking: { type: "enabled", budget_tokens: 123 },
+        output_config: { effort: "low", format: { type: "json" } },
+        messages: [],
+      }),
+    })
+    assert.deepEqual(captured.thinking, { type: "disabled" })
+    assert.deepEqual(captured.output_config, { format: { type: "json" } })
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test("relayFetch：没有档位头时请求体原样不动", async () => {
+  let received = ""
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    received = String(init?.body ?? "")
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    const body = JSON.stringify({
+      model: "glm-5.3-oc",
+      reasoning_effort: "max",
+      thinking: { type: "enabled", budget_tokens: 1 },
+    })
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/chat/completions", {
+      method: "POST",
+      headers: { "x-magpie-effort": "" },
+      body,
+    })
+    assert.equal(received, body)
+  } finally {
+    globalThis.fetch = original
+  }
+})
+
+test("relayFetch：count_tokens 不写档位，但去掉 magpie 专用头", async () => {
+  let received = ""
+  let headers = new Headers()
+  const original = globalThis.fetch
+  globalThis.fetch = (async (_input: RequestInfo | URL, init?: RequestInit) => {
+    received = String(init?.body ?? "")
+    headers = new Headers(init?.headers)
+    return new Response("{}", { status: 200 })
+  }) as typeof fetch
+  try {
+    const body = JSON.stringify({ model: "glm-5.3-oc", messages: [] })
+    await relayFetch("https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/count_tokens", {
+      method: "POST",
+      headers: { "x-magpie-effort": "high" },
+      body,
+    })
+    assert.equal(received, body)
+    assert.equal(headers.get("x-magpie-effort"), null)
+  } finally {
+    globalThis.fetch = original
+  }
+})

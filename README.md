@@ -4,7 +4,7 @@
 
 ## 功能
 
-- **模型转发**：6 个模型（见下方模型目录），默认走 Anthropic Messages 端点，可在插件选项中切换为 OpenAI Chat Completions 端点（从下一个请求起生效）。
+- **模型转发**：6 个模型（见下方模型目录），默认走 OpenAI Chat Completions 端点（支持思考档位），可在插件选项中切换为 Anthropic Messages 端点（从下一个请求起生效）。
 - **登录**：账号 + 密码（IAM → CAS → ticketAuthorize 链路），API Key 可选。
 - **自动续登**：JWT 到期前 6 小时自动重走登录链路；网页会话中途失效时自动重登并重试一次。
 - **每日签到**：通过 magpie 自带的签到调度（每个北京日一次），领取 `taskDefId=3001` 的「每日签到」Token 奖励。
@@ -27,18 +27,45 @@ magpie plugin login eaichat
 
 ## 模型目录
 
-| 上游模型 ID | 展示名称 | 上下文（tokens） |
-| --- | --- | ---: |
-| `deepseek-v4.1-flash` | DeepSeek-V4.1-Flash | 1,048,576 |
-| `glm-5.3-flash` | GLM-5.3-Flash | 1,000,000 |
-| `deepseek-v4-flash-0731-oc` | DeepSeek-V4-Flash | 1,048,576 |
-| `deepseek-v4-pro-0813-oc` | DeepSeek-V4-Pro | 1,048,576 |
-| `glm-5.3-oc` | GLM-5.3 | 1,000,000 |
-| `qwen-3.8-flash` | Qwen3.8-Flash | 1,000,000 |
+| 上游模型 ID | 展示名称 | 上下文（tokens） | 最大输出 | 思考档位 | 输入 |
+| --- | --- | ---: | ---: | --- | --- |
+| `deepseek-v4.1-flash` | DeepSeek-V4.1-Flash | 1,048,576 | 384,000 | `none` `low` `high` `max` | text, image |
+| `glm-5.3-flash` | GLM-5.3-Flash | 1,000,000 | 131,072 | `low` `high` `max` | text, image, video |
+| `deepseek-v4-flash-0731-oc` | DeepSeek-V4-Flash | 1,048,576 | 384,000 | `none` `low` `high` `max` | text |
+| `deepseek-v4-pro-0813-oc` | DeepSeek-V4-Pro | 1,000,000 | 384,000 | `none` `low` `high` `max` | text |
+| `glm-5.3-oc` | GLM-5.3 | 1,000,000 | 131,072 | `low` `high` `max` | text |
+| `qwen-3.8-flash` | Qwen3.8-Flash | 1,000,000 | 131,072 | `none` `low` `medium` `xhigh` | text, image, video |
 
-展示名称由模型的 `name` 提供，请求使用对应的上游模型 ID。magpie 根据 `limit.context` 自动显示灰色 `1M` / `1.0M` 徽标；两种协议共用同一份模型元数据。更新插件后，在供应商页面点击「重新获取模型」刷新展示。
+展示名称由模型的 `name` 提供，请求使用对应的上游模型 ID。magpie 根据 `limit.context` 自动显示灰色 `1M` / `1.0M` 徽标，并把 `variants` 显示为思考档位；两种协议共用同一份模型元数据。更新插件后，在供应商页面点击「重新获取模型」刷新展示。
 
-上下文规格核对于 2026-11-16：DeepSeek 参考 [astudio 同型号配置](https://github.com/magpie-community/plugins/tree/main/packages/astudio)，GLM 参考 [GLM-5.3](https://docs.bigmodel.cn/cn/guide/models/text/glm-5.3) / [GLM-5.3-Flash](https://docs.bigmodel.cn/cn/guide/models/vlm/glm-5.3-flash)，Qwen 参考 [Qwen3.8-Flash](https://help.aliyun.com/zh/model-studio/qwen3-8-flash)；数值口径同时核对 [models.dev](https://models.dev/api.json)。云智助手目录提供模型 ID，当前上下文声明采用上述公开规格。
+### 元数据来源
+
+上下文、最大输出、多模态和思考档位都不在源码里手写。`src/constants.ts` 只维护「上游模型 ID → models.dev 规范模型 ID」的映射；`src/model-metadata.ts` 由脚本从 [models.dev](https://models.dev/api.json) 生成：
+
+```sh
+npm run update:models
+```
+
+models.dev 没有 `eaichat` 供应商，所以脚本按每个条目的 `canonical_model_id` 汇总所有列出同一规范模型的供应商：
+
+- 上下文 / 最大输出：出现次数最多的值（并列取较大值）；
+- 输入模态：至少一半条目声明的类型；
+- 思考档位：出现次数最多的 `reasoning_options` 组合，`toggle` 记为 `none`。
+
+生成的元数据带 `sourceEntries` 字段，便于核对聚合了多少条 models.dev 条目。更换模型或上游规格变化时，改 `src/constants.ts` 的映射后重新运行脚本即可，不需要手工抄数字。
+
+### 思考档位
+
+插件默认使用 OpenAI Chat Completions 协议，因为 OpenCode/magpie 把用户选的档位作为 `reasoning_effort` 发出：
+
+- OpenAI 端点：写入 `enable_thinking` 与 `reasoning_effort`（上游合法值包括 `none`、`minimal`、`low`、`medium`、`high`、`xhigh`、`max`、`ultra`）；
+- Anthropic 端点：写入 `thinking.budget_tokens` 与 `output_config.effort`，`none` 写成 `thinking: { type: "disabled" }`。
+
+没有选档位时请求体保持原样，由上游按自己的默认值处理。Anthropic 端点没有与 OpenCode 变体等价的客户端字段，因此如果依赖思考档位，请保持默认的 OpenAI 协议；Anthropic 协议仍可用于显式发送 `thinking` / `output_config` 的客户端。
+
+### 与上游实测的差异
+
+2026-11-18 对 6 个模型的两个端点做了小请求探测：OpenAI 端点的 `reasoning_effort` 会实际改变推理 token 数（`low` / `high` / `max` 有差异），非法值返回 400 并列出合法枚举；Anthropic 端点的 `thinking.budget_tokens` 与 `output_config.effort` 均被接受。GLM 系列的 OpenAI 端点不接受 `enable_thinking: false` 关闭思考，因此 GLM 的档位里没有 `none`。
 
 ## 每日签到
 
@@ -61,6 +88,7 @@ magpie plugin login eaichat
 npm install
 npm test        # 单元测试（模拟上游，不联网）
 npm run check   # tsc --noEmit
+npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 node --experimental-strip-types --no-warnings scripts/live-check.ts   # 实机验证（读 .env，不打印凭据）
 ```
 
@@ -72,18 +100,22 @@ src/
   eaichat.ts   云智助手客户端（登录链路、签名、portal 接口）
   state.ts     账号会话管理（续登、Key 解析、并发合并）
   models.ts    模型目录（6 个模型 × 两种协议）
+  model-metadata.ts  从 models.dev 生成的限额/模态/思考档位
   usage.ts     用量映射
   checkin.ts   签到映射
-  relay.ts     模型请求转发（URL 归一 + 透传）
+  relay.ts     模型请求转发（URL 归一 + 认证头 + 思考档位）
   crypto.ts    加密/签名原语
   http.ts      CookieJar 等基础设施
-  constants.ts 常量
+  constants.ts 常量与规范模型映射
+scripts/
+  update-model-metadata.ts  重新生成 model-metadata.ts
+  live-check.ts             实机验证
 tests/         node --test 单元测试（含完整登录链路的假上游）
 ```
 
 ### 已知待校准项
 
-- 输出上限暂取 8K（8,192 tokens）；上游 `/platform/cp/models` 未提供限额数值，后续按服务端规格校准。
+- 模型限额来自 models.dev 的聚合值，不是云智助手自己的 `/platform/cp/models`（该接口不返回限额）。若上游实际限额与聚合值不同，调整 `src/constants.ts` 的规范模型映射后重新运行 `npm run update:models`。
 - `addApiKey` 的创建路径未在真实账号实测（该账号已有同名 Key，走了复用路径）；响应字段名做了多候选兼容（`apiKey`/`key`/`keySecret` 等），列表回显字段已实测为 `apiKey`。
 
 ## License

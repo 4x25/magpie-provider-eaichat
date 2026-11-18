@@ -9,6 +9,7 @@ magpie 插件：云智助手（eaichat.ctyun.cn）Token 中心接入 magpie。Ty
 ```sh
 npm test          # 单元测试（node --test --experimental-strip-types，不联网）
 npm run check     # tsc --noEmit
+npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 ```
 
 单个测试文件：`node --test --experimental-strip-types --no-warnings tests/state.test.ts`。
@@ -27,10 +28,13 @@ npm run check     # tsc --noEmit
 - `src/state.ts` 是会话核心：按 `userHash` 分账号，同一账号并发登录/Key 解析合并为一次（single-flight）；`withSessionRetry` 在 sessionExpired 时强制重登并重试一次。
 - `tests/helpers.ts` 的假上游实现了完整登录链路（真 RSA keypair、AES-ECB sessionKey、Web-Signature 验签），测试不 mock crypto 模块。验签必须用请求自带的 `web-random`/`web-timestamp`，不能重新生成（生成值每次不同，永远对不上）。
 - 插件选项有两条路：`auth.options` 声明的 GUI 开关经 `input.magpie.option(provider, key)` 读；CLI `magpie plugin options` 写的进 plugins.json 作为插件函数第二参数。`wireProtocol()` 两者都认。
+- `src/model-metadata.ts` 是**生成文件**，由 `scripts/update-model-metadata.ts` 从 models.dev 生成，不要手改。上游模型 ID 与 models.dev 规范 ID 的映射在 `src/constants.ts` 的 `MODEL_IDS`；换模型只改映射，再跑 `npm run update:models`。
+- 默认协议是 OpenAI（`use_openai` 默认 true）：思考档位经 `X-Magpie-Effort` 到达 `relayFetch`，OpenAI 端点写 `enable_thinking` + `reasoning_effort`，Anthropic 端点写 `thinking.budget_tokens` + `output_config.effort`。没有该头时请求体保持原样。
 
 ## 上游实测行为（2026-11-12 验证，写代码前先信这里）
 
 - **两个模型端点都只认 `Authorization: Bearer <apiKey>`**。Anthropic 端点对 `x-api-key` 返回 401——`src/relay.ts` 统一改写认证头，别去掉这层。
+- 思考档位（2026-11-18 实测）：OpenAI 端点接受 `reasoning_effort` 的 `none/minimal/low/medium/high/xhigh/max/ultra`，非法值返回 400 并列出枚举；`enable_thinking: false` 可关掉 DeepSeek/Qwen 的思考，但 GLM 会忽略，所以 GLM 的档位没有 `none`。Anthropic 端点接受 `thinking.budget_tokens` 和 `output_config.effort`。
 - Anthropic 路径带 `/v1`：`/ai/platform/v2/cp/anthropic/v1/messages`；OpenAI 是 `/ai/platform/v2/cp/chat/completions`。
 - 用量接口上游拼写就是 `usage/summry`（不是 summary）。
 - API Key 列表（`platform/cp/apiKeys`）会回显完整密钥（`apiKey` 字段）；`addApiKey` 响应字段名未实测，代码做了多候选兼容。
@@ -40,7 +44,7 @@ npm run check     # tsc --noEmit
 
 ## 凭据与安全（硬性要求）
 
-- `.env`（`EAICHAT_USERNAME` / `EAICHAT_PASSWORD`）不入库、不打印、不进上下文。测试账号仅 ~0.8M tokens，实机验证要省着用：模型调用用小 `max_tokens`，能用复用/探测代替的就别对话。
+- `.env`（`EAICHAT_USERNAME` / `EAICHAT_PASSWORD`）不入库、不打印、不进上下文。测试账号额度有限，实机验证要省着用：模型调用用小 `max_tokens`，能用复用/探测代替的就别对话。
 - 账号显示用 `maskAccount` 脱敏；密钥只显示末 4 位。
 - `client.auth.set` 是**整对象替换**：运行期写回必须带完整形状（`type`/`refresh`/`access`/`expires`/`user`/`userHash`/`accountId`/`apiKey`），漏字段会把宿主保存的 `access` 抹掉。`refresh` 字段承载密码摘要，`asStoredAuth` 也能从 `refresh` 兜底还原 `pwHash`。
 
