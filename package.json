@@ -19,6 +19,10 @@
     "云智助手",
     "provider"
   ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/4x25/magpie-provider-eaichat.git"
+  },
   "license": "MIT",
   "magpie": {
     "name": "云智助手 EAIChat",
