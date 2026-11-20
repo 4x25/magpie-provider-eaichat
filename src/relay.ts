@@ -10,8 +10,12 @@
  *   - OpenAI：enable_thinking + reasoning_effort（上游合法值 none/minimal/low/medium/high/xhigh/max/ultra）
  *   - Anthropic：thinking.budget_tokens + output_config.effort
  * 没有该头时请求体一个字节都不动。
+ *
+ * 额度耗尽：上游仍回 HTTP 200，把充值文案当模型输出返回。`guardQuotaResponse`
+ * 会在转发前识别并改写成 402，见 quota.ts。
  */
 import { ANTHROPIC_BASE, OPENAI_BASE } from "./constants.ts"
+import { guardQuotaResponse } from "./quota.ts"
 
 /** magpie 传给插件 fetch 的档位头（不会发给上游）。 */
 const EFFORT_HEADER = "x-magpie-effort"
@@ -184,11 +188,15 @@ export async function relayFetch(
       ? { ...init, headers }
       : init
 
+  const protocol = protocolOf(url)
+  let response: Response
   if (typeof input !== "string" && !(input instanceof URL)) {
-    if (url !== rawUrl || merged) {
-      return fetch(new Request(url, input), merged)
-    }
-    return fetch(input, init)
+    response =
+      url !== rawUrl || merged
+        ? await fetch(new Request(url, input), merged)
+        : await fetch(input, init)
+  } else {
+    response = await fetch(url, merged)
   }
-  return fetch(url, merged)
+  return protocol ? guardQuotaResponse(response, protocol) : response
 }

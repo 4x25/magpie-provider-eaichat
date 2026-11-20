@@ -35,6 +35,7 @@ npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 
 - **两个模型端点都只认 `Authorization: Bearer <apiKey>`**。Anthropic 端点对 `x-api-key` 返回 401——`src/relay.ts` 统一改写认证头，别去掉这层。
 - 思考档位（2026-11-18 实测）：OpenAI 端点接受 `reasoning_effort` 的 `none/minimal/low/medium/high/xhigh/max/ultra`，非法值返回 400 并列出枚举；`enable_thinking: false` 可关掉 DeepSeek/Qwen 的思考，但 GLM 会忽略，所以 GLM 的档位没有 `none`。Anthropic 端点接受 `thinking.budget_tokens` 和 `output_config.effort`。
+- 额度耗尽（2026-11-20 实测）：上游仍回 HTTP 200，把充值文案塞进正常回复（OpenAI `choices[].message.content`，Anthropic `content[].text`，流式在 delta），合成模型名为 `ctyun-smart-oc` / `ctyun-smart-claude`。`src/quota.ts` 在 `relayFetch` 里识别并改写成 402（OpenAI `insufficient_quota`，Anthropic `invalid_request_error`）；流式在首包前转错误，不把充值文案当模型输出。
 - Anthropic 路径带 `/v1`：`/ai/platform/v2/cp/anthropic/v1/messages`；OpenAI 是 `/ai/platform/v2/cp/chat/completions`。
 - 用量接口上游拼写就是 `usage/summry`（不是 summary）。
 - API Key 列表（`platform/cp/apiKeys`）会回显完整密钥（`apiKey` 字段）；`addApiKey` 响应字段名未实测，代码做了多候选兼容。

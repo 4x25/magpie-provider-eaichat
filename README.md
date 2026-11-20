@@ -75,6 +75,15 @@ models.dev 没有 `eaichat` 供应商，所以脚本按每个条目的 `canonica
 
 额度窗口以「已用 + 剩余」为分母：剩余归零即 100%，与 magpie 的路由判断一致；已过期（`expTokens`）额度不参与比例，单独显示。数字保留上游精度。
 
+## 额度耗尽
+
+Token 余额为 0 时，上游仍返回 HTTP 200，并把充值文案塞进正常回复（OpenAI 在 `choices[].message.content`，Anthropic 在 `content[].text`，流式则在 delta 中），合成模型名为 `ctyun-smart-oc` / `ctyun-smart-claude`。插件在转发层（`src/relay.ts` → `src/quota.ts`）识别这类响应，改为协议兼容的错误：
+
+- OpenAI：`402 Payment Required` + `{"error":{"type":"insufficient_quota","code":"insufficient_quota",...}}`
+- Anthropic：`402 Payment Required` + `{"type":"error","error":{"type":"invalid_request_error",...}}`
+
+错误 `message` 保留上游的充值说明与购买链接。流式请求也会在输出第一个 token 前转成 402，不会把充值文案当成模型回复发给客户端。用 402 而不是 429，是为了让 OpenAI/Anthropic SDK 直接报错而不自动重试（额度耗尽重试无用）。
+
 ## 实测记录（2026-11-12，magpie 0.1.1331）
 
 - 登录链路（IAM → CAS → ticketAuthorize）、API Key 列表回显、用量读取、每日签到状态读取：全部通过。
@@ -104,6 +113,7 @@ src/
   usage.ts     用量映射
   checkin.ts   签到映射
   relay.ts     模型请求转发（URL 归一 + 认证头 + 思考档位）
+  quota.ts     额度耗尽识别（把上游 200 充值文案转成 402）
   crypto.ts    加密/签名原语
   http.ts      CookieJar 等基础设施
   constants.ts 常量与规范模型映射

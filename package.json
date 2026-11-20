@@ -1,6 +1,6 @@
 {
   "name": "magpie-provider-eaichat",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "云智助手（eaichat.ctyun.cn）Token 中心接入 magpie：账号密码登录、自动续登、每日签到、用量显示与模型转发",
   "type": "module",
   "main": "./src/index.ts",
