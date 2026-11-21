@@ -86,6 +86,30 @@ test("API Key 列表解析：records 形状 + 字段别名", async () => {
   assert.equal(rows.find((r) => r.name === API_KEY_NAME)?.key, "sk-plugin")
 })
 
+test("模型清单解析：上游字段归一 + 去重；失败抛 UpstreamError", async () => {
+  const { fake, client } = makeClient()
+  await client.login({ userAccount: USER, passwordDigest: digest("correct-password") })
+  fake.state.models = [
+    { id: 1, title: "A", model: "a", api: "openai-completions, anthropic-messages" },
+    { id: 2, name: "B", modelId: "b" },
+    { id: 3, title: "C", code: "c", api: ["anthropic-messages"] },
+    { id: 4, title: "A again", model: "a" },
+    { id: 5, title: "no id" },
+  ]
+  const models = await client.listModels()
+  assert.deepEqual(models, [
+    { id: "a", name: "A", apis: ["openai-completions", "anthropic-messages"] },
+    { id: "b", name: "B", apis: [] },
+    { id: "c", name: "C", apis: ["anthropic-messages"] },
+  ])
+
+  fake.state.modelsResultCode = -1
+  await assert.rejects(
+    () => client.listModels(),
+    (e: unknown) => e instanceof UpstreamError && /模型列表获取失败/.test((e as Error).message),
+  )
+})
+
 test("keyOfCreated 兼容多种字段名", () => {
   assert.equal(keyOfCreated({ apiKey: "a" }), "a")
   assert.equal(keyOfCreated({ key: "b" }), "b")

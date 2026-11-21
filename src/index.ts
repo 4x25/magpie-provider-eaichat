@@ -87,10 +87,11 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
       id: PROVIDER_ID,
 
       async models(provider: { models?: Record<string, unknown> }, ctx: { auth?: unknown } = {}) {
+        const wire = wireProtocol()
         const declared =
           provider?.models && Object.keys(provider.models).length > 0
             ? provider.models
-            : modelsFor(wireProtocol())
+            : modelsFor(wire)
         if (!ctx?.auth) return declared
 
         const auth = asStoredAuth(ctx.auth)
@@ -100,15 +101,17 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
           const session = sessionOf(auth, deps)
           const client = await session.ensureClient(auth)
           await session.ensureApiKey(auth, client)
+          const upstream = await session.readModels(auth)
+          if (upstream.length === 0) throw new UpstreamError("上游模型列表为空")
+          return modelsFor(wire, upstream)
         } catch (e) {
           if (e instanceof LoginRefusedError) {
             throw Object.assign(new Error(`${errText(e)}，请重新登录`), { signIn: "expired" })
           }
-          // 会话/Key 暂不可用：保留声明列表（magpie 视为 fallback）
-          log("warn", `eaichat: 模型列表校验未完成（${errText(e)}）`)
+          // 上游清单暂不可用：保留声明列表（magpie 视为 fallback）
+          log("warn", `eaichat: 模型列表获取失败，使用内置回退清单（${errText(e)}）`)
           return declared
         }
-        return modelsFor(wireProtocol())
       },
     },
 

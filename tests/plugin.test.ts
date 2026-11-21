@@ -87,7 +87,7 @@ test("config 钩子声明供应商与模型，不覆盖用户配置", async () =
   assert.equal(p.name, "云智助手")
   assert.equal(p.npm, "@ai-sdk/openai-compatible")
   assert.equal(p.api, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
-  assert.equal(Object.keys(p.models).length, 6)
+  assert.equal(Object.keys(p.models).length, 5)
   assert.equal(p.models["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
   assert.deepEqual(Object.keys(p.models["glm-5.3-oc"].variants ?? {}), ["low", "high", "max"])
   // ??= 不覆盖用户已有配置
@@ -240,13 +240,13 @@ test("checkin：未登录 → failed", async () => {
   assert.equal(r.outcome, "failed")
 })
 
-test("models：无 auth 返回声明列表；有 auth 时协议开关切换 npm", async () => {
+test("models：无 auth 返回内置回退清单；协议开关切换 npm", async () => {
   const { hooks: hooksA } = await makePlugin()
   const declared = (await hooksA.provider.models({ models: {} }, {})) as Record<
     string,
     { api: { npm: string } }
   >
-  assert.equal(Object.keys(declared).length, 6)
+  assert.equal(Object.keys(declared).length, 5)
   // 默认 OpenAI：思考档位只在 OpenAI 端点生效
   assert.equal(declared["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
 
@@ -259,6 +259,81 @@ test("models：无 auth 返回声明列表；有 auth 时协议开关切换 npm"
       { api: { npm: string } }
     >
     assert.equal(switched["glm-5.3-oc"].api.npm, "@ai-sdk/anthropic")
+  })
+})
+
+test("models：登录后按上游清单返回（新模型与上游展示名）", async () => {
+  await withFake(async (fake) => {
+    fake.state.models.push({
+      id: 99,
+      title: "Future Model",
+      model: "future-model",
+      api: "openai-completions",
+    })
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const models = (await hooks.provider.models({ models: {} }, { auth })) as Record<
+      string,
+      { name: string; api: { npm: string }; limit: { context: number; output: number } }
+    >
+    assert.deepEqual(Object.keys(models), [
+      "deepseek-v4.1-flash",
+      "glm-5.3-flash",
+      "deepseek-v4-pro-0813-oc",
+      "glm-5.3-oc",
+      "qwen-3.8-flash",
+      "future-model",
+    ])
+    assert.equal(models["deepseek-v4.1-flash"].name, "DeepSeek-V4.1-Flash-1017")
+    assert.equal(models["deepseek-v4.1-flash"].limit.context, 1_048_576)
+    // 未在 MODEL_IDS 中映射的新模型使用保守默认值
+    assert.equal(models["future-model"].limit.context, 128_000)
+    assert.equal(models["future-model"].limit.output, 32_000)
+    assert.equal(models["future-model"].api.npm, "@ai-sdk/openai-compatible")
+  })
+})
+
+test("models：按上游 api 字段过滤协议", async () => {
+  await withFake(async (fake) => {
+    fake.state.models = [
+      { id: 1, title: "Both", model: "both", api: "openai-completions,anthropic-messages" },
+      { id: 2, title: "OpenAI Only", model: "openai-only", api: "openai-completions" },
+      { id: 3, title: "Anthropic Only", model: "anthropic-only", api: "anthropic-messages" },
+    ]
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const openai = (await hooks.provider.models({ models: {} }, { auth })) as Record<string, unknown>
+    assert.deepEqual(Object.keys(openai), ["both", "openai-only"])
+
+    const magpie = { option: (_p: string, key: string) => key === "use_openai" ? false : undefined }
+    const { hooks: hooksAnthropic } = await makePlugin(magpie)
+    const authAnthropic = await signInAs(hooksAnthropic)
+    const anthropic = (await hooksAnthropic.provider.models({ models: {} }, { auth: authAnthropic })) as Record<
+      string,
+      unknown
+    >
+    assert.deepEqual(Object.keys(anthropic), ["both", "anthropic-only"])
+  })
+})
+
+test("models：同一会话内缓存上游清单", async () => {
+  await withFake(async (fake) => {
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const before = fake.counters.modelLists
+    await hooks.provider.models({ models: {} }, { auth })
+    await hooks.provider.models({ models: {} }, { auth })
+    assert.equal(fake.counters.modelLists, before + 1)
+  })
+})
+
+test("models：上游清单失败时退回内置回退清单", async () => {
+  await withFake(async (fake) => {
+    fake.state.modelsResultCode = -1
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const models = (await hooks.provider.models({ models: {} }, { auth })) as Record<string, unknown>
+    assert.equal(Object.keys(models).length, 5)
   })
 })
 

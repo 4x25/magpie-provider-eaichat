@@ -2,8 +2,8 @@
  * 账号会话管理：按账号（userHash）持有客户端、续登与 API Key 解析。
  * 并发规则：同一账号同一时刻至多一次登录、一次 Key 解析；续登后重试一次。
  */
-import { API_KEY_NAME, USAGE_TTL_MS } from "./constants.ts"
-import { EaiChatClient, keyOfCreated, type EaiTokenUsage } from "./eaichat.ts"
+import { API_KEY_NAME, MODELS_TTL_MS, USAGE_TTL_MS } from "./constants.ts"
+import { EaiChatClient, keyOfCreated, type EaiModel, type EaiTokenUsage } from "./eaichat.ts"
 import { sha256Hex } from "./crypto.ts"
 import { LoginRefusedError, UpstreamError, isRecord, toTrimmedString } from "./util.ts"
 
@@ -82,6 +82,8 @@ export class AccountSession {
   private loginPromise: Promise<EaiChatClient> | null = null
   private keyPromise: Promise<string> | null = null
   private usageCache: { at: number; value: EaiTokenUsage } | null = null
+  private modelsCache: { at: number; value: EaiModel[] } | null = null
+  private modelsPromise: Promise<EaiModel[]> | null = null
   private readonly deps: SessionDeps
 
   constructor(deps: SessionDeps) {
@@ -106,6 +108,7 @@ export class AccountSession {
       await this.withNetRetry(() => client.login({ userAccount: auth.user, passwordDigest: auth.pwHash }))
       this.client = client
       this.usageCache = null
+      this.modelsCache = null
       const expires = client.jwtExpiresAt() ?? 0
       const access = client.token ?? ""
       if (expires > (auth.expires ?? 0) || access !== auth.access) {
@@ -140,6 +143,7 @@ export class AccountSession {
     if (client.isLoggedIn) {
       this.client = client
       this.usageCache = null
+      this.modelsCache = null
     }
   }
 
@@ -210,6 +214,22 @@ export class AccountSession {
     const value = await this.withSessionRetry(auth, (client) => client.getTokenUsage())
     this.usageCache = { at: Date.now(), value }
     return value
+  }
+
+  /** 读取上游模型清单（带 TTL 缓存；会话失效自动重登一次）。 */
+  async readModels(auth: StoredAuth): Promise<EaiModel[]> {
+    const hit = this.modelsCache
+    if (hit && Date.now() - hit.at < MODELS_TTL_MS) return hit.value
+    if (this.modelsPromise) return this.modelsPromise
+    this.modelsPromise = this.withSessionRetry(auth, (client) => client.listModels())
+      .then((value) => {
+        this.modelsCache = { at: Date.now(), value }
+        return value
+      })
+      .finally(() => {
+        this.modelsPromise = null
+      })
+    return this.modelsPromise
   }
 
   /** 在（必要时重登的）会话上执行 fn；fn 抛 sessionExpired 时重登一次再试。 */

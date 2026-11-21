@@ -16,6 +16,10 @@ export interface FakeState {
   /** portal 接口是否认当前 JWT（false → 401）。 */
   jwtValid: boolean
   usage: { totalTokens: number; usedTokens: number; expTokens: number; remainTokens: number }
+  /** 上游模型清单（/platform/cp/models）。 */
+  models: Array<Record<string, unknown>>
+  /** /platform/cp/models 的 resultCode（非 0 模拟失败）。 */
+  modelsResultCode: number
   tasks: Array<Record<string, unknown>>
   keys: Array<{ id: string; name: string; apiKey: string }>
   /** addApiKey 成功时是否在响应中回显密钥。 */
@@ -39,6 +43,14 @@ export function makeFakeUpstream() {
     iamCode: 0,
     jwtValid: true,
     usage: { totalTokens: 800_000, usedTokens: 1_000, expTokens: 0, remainTokens: 799_000 },
+    models: [
+      { id: 12, title: "DeepSeek-V4.1-Flash-1017", model: "deepseek-v4.1-flash", api: "openai-completions,anthropic-messages" },
+      { id: 11, title: "GLM-5.3-Flash", model: "glm-5.3-flash", api: "openai-completions,anthropic-messages" },
+      { id: 7, title: "DeepSeek-V4-Pro-0813", model: "deepseek-v4-pro-0813-oc", api: "openai-completions,anthropic-messages" },
+      { id: 8, title: "GLM-5.3", model: "glm-5.3-oc", api: "openai-completions,anthropic-messages" },
+      { id: 13, title: "Qwen-3.8-Flash", model: "qwen-3.8-flash", api: "openai-completions,anthropic-messages" },
+    ],
+    modelsResultCode: 0,
     tasks: [],
     keys: [],
     addKeyEchoes: true,
@@ -46,7 +58,7 @@ export function makeFakeUpstream() {
   }
   let jwt = fakeJwt(Date.now() + 7 * 24 * 3600_000)
   const requests: RecordedRequest[] = []
-  const counters = { addApiKey: 0, receivePoints: 0, logins: 0 }
+  const counters = { addApiKey: 0, receivePoints: 0, logins: 0, modelLists: 0 }
 
   const json = (body: unknown, status = 200, headers: Record<string, string> = {}) =>
     new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", ...headers } })
@@ -133,6 +145,10 @@ export function makeFakeUpstream() {
           return json({ resultCode: 0, data: { code: -1, msg: state.receiveRefusal, data: false } })
         }
         return json({ resultCode: 0, data: { code: 0, data: true } })
+      }
+      if (url.endsWith("/platform/cp/models")) {
+        counters.modelLists++
+        return json({ resultCode: state.modelsResultCode, data: state.models })
       }
       if (url.endsWith("/platform/cp/apiKeys")) {
         return json({ resultCode: 0, data: { records: state.keys } })

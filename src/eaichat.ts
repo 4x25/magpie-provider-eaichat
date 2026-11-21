@@ -50,6 +50,26 @@ export interface ApiKeyRow {
   key: string
 }
 
+/** 上游模型清单条目（`/platform/cp/models`）。 */
+export interface EaiModel {
+  /** 请求时放在 `model` 字段的上游 id。 */
+  id: string
+  /** 展示名（上游 `title`）。 */
+  name: string
+  /** 上游 `api` 字段声明的端点；空数组表示没声明。 */
+  apis: string[]
+}
+
+/** 把 `api` 字段（逗号分隔字符串或数组）拆成端点名。 */
+function apisOf(value: unknown): string[] {
+  const list = Array.isArray(value)
+    ? value
+    : typeof value === "string"
+      ? value.split(",")
+      : []
+  return list.map((item) => toTrimmedString(item).toLowerCase()).filter(Boolean)
+}
+
 /** 从若干候选字段里挖出数组。 */
 function arrayOf(value: unknown): unknown[] {
   if (!isRecord(value)) return Array.isArray(value) ? value : []
@@ -446,6 +466,27 @@ export class EaiChatClient {
     if (Number(outer.code) !== 0 || outer.data !== true) {
       throw new UpstreamError(toTrimmedString(outer.msg) || "签到请求被拒绝")
     }
+  }
+
+  /** 当前账号可用的模型清单（portal 接口，需登录）。 */
+  async listModels(): Promise<EaiModel[]> {
+    const json = await this.api("/ai/portal/wenc/v1/platform/cp/models")
+    if (Number(json.resultCode) !== 0) throw new UpstreamError("模型列表获取失败")
+    const out: EaiModel[] = []
+    const seen = new Set<string>()
+    for (const row of arrayOf(json.data)) {
+      if (!isRecord(row)) continue
+      const id =
+        toTrimmedString(row.model) || toTrimmedString(row.modelId) || toTrimmedString(row.code)
+      if (!id || seen.has(id)) continue
+      seen.add(id)
+      out.push({
+        id,
+        name: toTrimmedString(row.title) || toTrimmedString(row.name) || id,
+        apis: apisOf(row.api),
+      })
+    }
+    return out
   }
 
   /** 列出账号下的 API Key。 */

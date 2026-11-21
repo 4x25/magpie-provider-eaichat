@@ -45,7 +45,15 @@ async function main() {
   console.log(`登录成功：账号 ${mask(env.username)}，tenant=${client.tenant}`)
   console.log(`JWT 到期：${new Date(client.jwtExpiresAt() ?? 0).toISOString()}`)
 
-  console.log("== 2. API Key 查找/创建 ==")
+  console.log("== 2. 模型清单 ==")
+  const models = await retry("models", () => client.listModels())
+  if (models.length === 0) throw new Error("上游模型清单为空")
+  console.log(`共 ${models.length} 个模型`)
+  for (const model of models) {
+    console.log(`  ${model.id.padEnd(28)} ${model.name}  [${model.apis.join(", ") || "-"}]`)
+  }
+
+  console.log("== 3. API Key 查找/创建 ==")
   let key = ""
   const rows = await retry("apiKeys", () => client.listApiKeys())
   console.log(`账号下共 ${rows.length} 个 Key`)
@@ -68,13 +76,13 @@ async function main() {
   }
   if (!key) throw new Error("无法获得 API Key")
 
-  console.log("== 3. Token 用量 ==")
+  console.log("== 4. Token 用量 ==")
   const usage = await retry("usage", () => client.getTokenUsage())
   console.log(
     `total=${usage.totalTokens} used=${usage.usedTokens} exp=${usage.expTokens} remain=${usage.remainTokens}`,
   )
 
-  console.log("== 4. 每日签到 ==")
+  console.log("== 5. 每日签到 ==")
   const tasks = await retry("getTaskList", () => client.getTokenTasks())
   const daily = tasks.find((t) => t.taskDefId === 3001)
   if (!daily) {
@@ -94,11 +102,11 @@ async function main() {
   }
 
   if (noChat) {
-    console.log("== 5. 模型调用（--no-chat 跳过）==")
+    console.log("== 6. 模型调用（--no-chat 跳过）==")
     return
   }
 
-  console.log("== 5. 模型调用（Anthropic 协议，max_tokens=16）==")
+  console.log("== 6. 模型调用（Anthropic 协议，max_tokens=16）==")
   const url = mapUpstreamUrl("https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1/messages")
   const res = await retry("messages", async () => {
     const r = await fetch(url, {

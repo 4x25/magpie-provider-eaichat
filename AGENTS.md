@@ -16,6 +16,15 @@ npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 
 改动后两样都要过；提交前先 `check` 再 `test`。
 
+## 发版
+
+每次发版都必须：
+
+1. 升 `package.json` 的版本号（连同 `package-lock.json`），按 semver 选择 patch/minor/major；
+2. 跑 `npm run check` 与 `npm test`，通过后提交并推送 `master`；
+3. 打与版本号一致的 annotated tag（`vX.Y.Z`）并推送；
+4. 用 `gh release create vX.Y.Z` 发布 GitHub Release：标题沿用 `vX.Y.Z · 一句话摘要`，正文写「变更」「验证」两节。
+
 ## 语言/运行时约束（容易踩坑）
 
 - 相对导入必须带 `.ts` 扩展名（`allowImportingTsExtensions` + `rewriteRelativeImportExtensions: false` + `verbatimModuleSyntax`）。
@@ -28,12 +37,13 @@ npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 - `src/state.ts` 是会话核心：按 `userHash` 分账号，同一账号并发登录/Key 解析合并为一次（single-flight）；`withSessionRetry` 在 sessionExpired 时强制重登并重试一次。
 - `tests/helpers.ts` 的假上游实现了完整登录链路（真 RSA keypair、AES-ECB sessionKey、Web-Signature 验签），测试不 mock crypto 模块。验签必须用请求自带的 `web-random`/`web-timestamp`，不能重新生成（生成值每次不同，永远对不上）。
 - 插件选项有两条路：`auth.options` 声明的 GUI 开关经 `input.magpie.option(provider, key)` 读；CLI `magpie plugin options` 写的进 plugins.json 作为插件函数第二参数。`wireProtocol()` 两者都认。
-- `src/model-metadata.ts` 是**生成文件**，由 `scripts/update-model-metadata.ts` 从 models.dev 生成，不要手改。上游模型 ID 与 models.dev 规范 ID 的映射在 `src/constants.ts` 的 `MODEL_IDS`；换模型只改映射，再跑 `npm run update:models`。
+- `src/model-metadata.ts` 是**生成文件**，由 `scripts/update-model-metadata.ts` 从 models.dev 生成，不要手改。运行期模型清单来自上游 `/ai/portal/wenc/v1/platform/cp/models`（`model`/`title`/`api`）；`src/constants.ts` 的 `MODEL_IDS` 只是登录前/拉取失败的回退清单，同时承担「上游模型 ID → models.dev 规范 ID」的元数据映射。上游新增模型不需要改清单；要补准确限额/思考档位时才改映射并跑 `npm run update:models`。
 - 默认协议是 OpenAI（`use_openai` 默认 true）：思考档位经 `X-Magpie-Effort` 到达 `relayFetch`，OpenAI 端点写 `enable_thinking` + `reasoning_effort`，Anthropic 端点写 `thinking.budget_tokens` + `output_config.effort`。没有该头时请求体保持原样。
 
 ## 上游实测行为（2026-11-12 验证，写代码前先信这里）
 
 - **两个模型端点都只认 `Authorization: Bearer <apiKey>`**。Anthropic 端点对 `x-api-key` 返回 401——`src/relay.ts` 统一改写认证头，别去掉这层。
+- 模型清单（2026-11-21 实测）：`GET /ai/portal/wenc/v1/platform/cp/models` 需登录态 + Web-Signature，返回 `data[{model,title,api}]`；`api` 是逗号分隔的 `openai-completions,anthropic-messages`，不返回限额。`provider.models` 钩子据此生成列表（60 秒进程内缓存），`config` 钩子只能用 `MODEL_IDS` 回退清单。
 - 思考档位（2026-11-18 实测）：OpenAI 端点接受 `reasoning_effort` 的 `none/minimal/low/medium/high/xhigh/max/ultra`，非法值返回 400 并列出枚举；`enable_thinking: false` 可关掉 DeepSeek/Qwen 的思考，但 GLM 会忽略，所以 GLM 的档位没有 `none`。Anthropic 端点接受 `thinking.budget_tokens` 和 `output_config.effort`。
 - 额度耗尽（2026-11-20 实测）：上游仍回 HTTP 200，把充值文案塞进正常回复（OpenAI `choices[].message.content`，Anthropic `content[].text`，流式在 delta），合成模型名为 `ctyun-smart-oc` / `ctyun-smart-claude`。`src/quota.ts` 在 `relayFetch` 里识别并改写成 402（OpenAI `insufficient_quota`，Anthropic `invalid_request_error`）；流式在首包前转错误，不把充值文案当模型输出。
 - Anthropic 路径带 `/v1`：`/ai/platform/v2/cp/anthropic/v1/messages`；OpenAI 是 `/ai/platform/v2/cp/chat/completions`。

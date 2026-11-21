@@ -36,14 +36,20 @@ export const JWT_COOKIE = "YL-Token"
 /** 用量读取的进程内缓存时长。 */
 export const USAGE_TTL_MS = 30_000
 
+/** 上游模型列表的进程内缓存时长。 */
+export const MODELS_TTL_MS = 60_000
+
 /** 每日签到任务 taskDefId（网页「每日签到」）。 */
 export const DAILY_TASK_ID = 3001
 /** Token 任务列表 displayTypes 过滤值。 */
 export const TOKEN_TASK_DISPLAY_TYPE = 5
 /**
- * 上游模型 id → 展示信息与 models.dev 规范模型 id。
- * 上下文、最大输出、多模态与思考档位不在这里写死，由
- * `npm run update:models` 从 models.dev 的规范模型条目生成。
+ * 已知上游模型 → 回退展示名与 models.dev 规范模型 id。
+ *
+ * 运行期模型清单以上游 `/platform/cp/models` 为准；这里只在 config 钩子
+ * （还没有登录态）和拉取失败时作为回退清单，同时给已登录模型提供
+ * models.dev 元数据。上下文、最大输出、多模态与思考档位不在这里写死，
+ * 由 `npm run update:models` 从 models.dev 的规范模型条目生成。
  */
 export interface ModelInfo {
   id: string
@@ -55,7 +61,7 @@ export interface ModelInfo {
 export const MODEL_IDS: ModelInfo[] = [
   {
     id: "deepseek-v4.1-flash",
-    name: "DeepSeek-V4.1-Flash",
+    name: "DeepSeek-V4.1-Flash-1017",
     canonical: "deepseek/deepseek-v4.1-flash",
   },
   {
@@ -64,13 +70,8 @@ export const MODEL_IDS: ModelInfo[] = [
     canonical: "zhipuai/glm-5.3-flash",
   },
   {
-    id: "deepseek-v4-flash-0731-oc",
-    name: "DeepSeek-V4-Flash",
-    canonical: "deepseek/deepseek-v4-flash-0731",
-  },
-  {
     id: "deepseek-v4-pro-0813-oc",
-    name: "DeepSeek-V4-Pro",
+    name: "DeepSeek-V4-Pro-0813",
     canonical: "deepseek/deepseek-v4-pro-0813",
   },
   {
@@ -80,7 +81,7 @@ export const MODEL_IDS: ModelInfo[] = [
   },
   {
     id: "qwen-3.8-flash",
-    name: "Qwen3.8-Flash",
+    name: "Qwen-3.8-Flash",
     canonical: "alibaba/qwen3.8-flash",
   },
 ]
