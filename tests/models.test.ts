@@ -1,20 +1,15 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
-import { MODEL_IDS } from "../src/constants.ts"
+import { MODEL_SPECS } from "../src/constants.ts"
 import { MODEL_METADATA } from "../src/model-metadata.ts"
 import { modelsFor } from "../src/models.ts"
 
 const ANTHROPIC_URL = "https://eaichat.ctyun.cn/ai/platform/v2/cp/anthropic/v1"
 const OPENAI_URL = "https://eaichat.ctyun.cn/ai/platform/v2/cp"
 
-test("内置回退清单：id 与上游一致，清单为空时使用", () => {
-  const models = modelsFor("anthropic")
-  assert.deepEqual(Object.keys(models), MODEL_IDS.map((m) => m.id))
-  assert.deepEqual(Object.keys(modelsFor("anthropic", [])), MODEL_IDS.map((m) => m.id))
-  for (const m of MODEL_IDS) {
-    assert.equal(models[m.id].api.id, m.id)
-    assert.equal(models[m.id].name, m.name)
-  }
+test("上游清单为空：模型表为空", () => {
+  assert.deepEqual(modelsFor("anthropic", []), {})
+  assert.deepEqual(modelsFor("openai", []), {})
 })
 
 test("上游清单：id 与展示名来自上游，并沿用 models.dev 元数据", () => {
@@ -58,7 +53,13 @@ test("上游清单：按 api 字段过滤协议，未声明时两种都可用", 
 })
 
 test("模型目录：上下文/输出/多模态来自 models.dev 生成的元数据", () => {
-  const models = modelsFor("anthropic")
+  const models = modelsFor("anthropic", [
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash-1017", apis: [] },
+    { id: "glm-5.3-flash", name: "GLM-5.3-Flash", apis: [] },
+    { id: "deepseek-v4-pro-0813-oc", name: "DeepSeek-V4-Pro-0813", apis: [] },
+    { id: "glm-5.3-oc", name: "GLM-5.3", apis: [] },
+    { id: "qwen-3.8-flash", name: "Qwen-3.8-Flash", apis: [] },
+  ])
   const expected = {
     "deepseek-v4.1-flash": {
       context: 1_048_576,
@@ -123,8 +124,8 @@ test("模型目录：上下文/输出/多模态来自 models.dev 生成的元数
   }
 })
 
-test("模型元数据：每个回退模型都来自 models.dev 且有聚合条目", () => {
-  for (const model of MODEL_IDS) {
+test("模型元数据：每个 MODEL_SPECS 映射都来自 models.dev 且有聚合条目", () => {
+  for (const model of MODEL_SPECS) {
     const meta = MODEL_METADATA[model.canonical]
     assert.ok(meta, `${model.canonical} missing`)
     assert.ok(meta.context > 0, `${model.canonical} context`)
@@ -135,7 +136,9 @@ test("模型元数据：每个回退模型都来自 models.dev 且有聚合条�
 })
 
 test("anthropic 协议：npm 与 url", () => {
-  const models = modelsFor("anthropic")
+  const models = modelsFor("anthropic", [
+    { id: "glm-5.3-oc", name: "GLM-5.3", apis: [] },
+  ])
   const glm = models["glm-5.3-oc"]
   assert.equal(glm.api.npm, "@ai-sdk/anthropic")
   assert.equal(glm.api.url, ANTHROPIC_URL)
@@ -147,7 +150,9 @@ test("anthropic 协议：npm 与 url", () => {
 })
 
 test("openai 协议：npm 与 url", () => {
-  const models = modelsFor("openai")
+  const models = modelsFor("openai", [
+    { id: "deepseek-v4.1-flash", name: "DeepSeek-V4.1-Flash-1017", apis: [] },
+  ])
   const ds = models["deepseek-v4.1-flash"]
   assert.equal(ds.api.npm, "@ai-sdk/openai-compatible")
   assert.equal(ds.api.url, OPENAI_URL)

@@ -74,7 +74,7 @@ test("登录方式：必填账号/密码 + 可选 API Key", async () => {
   assert.equal(method.prompts[2].validate, undefined) // API Key 可选
 })
 
-test("config 钩子声明供应商与模型，不覆盖用户配置", async () => {
+test("config 钩子声明供应商，不声明模型（清单只来自上游）", async () => {
   const { hooks } = await makePlugin()
   const cfg: { provider?: Record<string, unknown> } = {}
   await hooks.config(cfg)
@@ -82,14 +82,12 @@ test("config 钩子声明供应商与模型，不覆盖用户配置", async () =
     name: string
     npm: string
     api: string
-    models: Record<string, { api: { npm: string }; variants?: Record<string, unknown> }>
+    models: Record<string, unknown>
   }
   assert.equal(p.name, "云智助手")
   assert.equal(p.npm, "@ai-sdk/openai-compatible")
   assert.equal(p.api, "https://eaichat.ctyun.cn/ai/platform/v2/cp")
-  assert.equal(Object.keys(p.models).length, 5)
-  assert.equal(p.models["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
-  assert.deepEqual(Object.keys(p.models["glm-5.3-oc"].variants ?? {}), ["low", "high", "max"])
+  assert.deepEqual(p.models, {})
   // ??= 不覆盖用户已有配置
   const cfg2 = { provider: { [PROVIDER_ID]: { name: "自定义" } } }
   await hooks.config(cfg2)
@@ -240,15 +238,16 @@ test("checkin：未登录 → failed", async () => {
   assert.equal(r.outcome, "failed")
 })
 
-test("models：无 auth 返回内置回退清单；协议开关切换 npm", async () => {
+test("models：无 auth 返回空表；有 auth 时按上游清单并跟随协议开关", async () => {
   const { hooks: hooksA } = await makePlugin()
-  const declared = (await hooksA.provider.models({ models: {} }, {})) as Record<
-    string,
-    { api: { npm: string } }
-  >
-  assert.equal(Object.keys(declared).length, 5)
-  // 默认 OpenAI：思考档位只在 OpenAI 端点生效
-  assert.equal(declared["glm-5.3-oc"].api.npm, "@ai-sdk/openai-compatible")
+  const declared = (await hooksA.provider.models({ models: {} }, {})) as Record<string, unknown>
+  assert.deepEqual(declared, {})
+  // 即使宿主给了声明列表，没有登录态也不提供
+  const custom = await hooksA.provider.models(
+    { models: { custom: { name: "Custom", api: { npm: "@ai-sdk/openai-compatible" } } } },
+    {},
+  )
+  assert.deepEqual(custom, {})
 
   await withFake(async () => {
     const magpie = { option: (_p: string, key: string) => key === "use_openai" ? false : undefined }
@@ -286,7 +285,7 @@ test("models：登录后按上游清单返回（新模型与上游展示名）",
     ])
     assert.equal(models["deepseek-v4.1-flash"].name, "DeepSeek-V4.1-Flash-1017")
     assert.equal(models["deepseek-v4.1-flash"].limit.context, 1_048_576)
-    // 未在 MODEL_IDS 中映射的新模型使用保守默认值
+    // 未在 MODEL_SPECS 中映射的新模型使用保守默认值
     assert.equal(models["future-model"].limit.context, 128_000)
     assert.equal(models["future-model"].limit.output, 32_000)
     assert.equal(models["future-model"].api.npm, "@ai-sdk/openai-compatible")
@@ -327,13 +326,16 @@ test("models：同一会话内缓存上游清单", async () => {
   })
 })
 
-test("models：上游清单失败时退回内置回退清单", async () => {
+test("models：上游清单失败时返回空表", async () => {
   await withFake(async (fake) => {
     fake.state.modelsResultCode = -1
     const { hooks } = await makePlugin()
     const auth = await signInAs(hooks)
-    const models = (await hooks.provider.models({ models: {} }, { auth })) as Record<string, unknown>
-    assert.equal(Object.keys(models).length, 5)
+    const models = (await hooks.provider.models(
+      { models: { custom: { name: "Custom", api: { npm: "@ai-sdk/openai-compatible" } } } },
+      { auth },
+    )) as Record<string, unknown>
+    assert.deepEqual(models, {})
   })
 })
 

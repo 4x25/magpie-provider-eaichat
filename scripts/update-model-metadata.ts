@@ -13,7 +13,7 @@
  */
 import { readFileSync, writeFileSync } from "node:fs"
 import { resolve } from "node:path"
-import { MODEL_IDS } from "../src/constants.ts"
+import { MODEL_SPECS } from "../src/constants.ts"
 
 const MODELS_DEV_URL = "https://models.dev/api.json"
 const OUTPUT = resolve(import.meta.dirname, "../src/model-metadata.ts")
@@ -154,7 +154,7 @@ const generated: string[] = []
 const summary: Array<[string, number, number, number, string, string]> = []
 const list = (values: readonly string[]) => `[${values.map((value) => JSON.stringify(value)).join(", ")}]`
 
-for (const model of MODEL_IDS) {
+for (const model of MODEL_SPECS) {
   const rows = rowsFor(catalog, model.canonical)
   if (rows.length === 0) throw new Error(`models.dev has no entry for canonical id ${model.canonical}`)
 
@@ -187,7 +187,7 @@ const text = `/**
  * Source date: ${new Date().toISOString().slice(0, 10)}.
  *
  * models.dev has no eaichat provider: each upstream model is matched to its
- * canonical model id (see MODEL_IDS in constants.ts) and the values here are
+ * canonical model id (see MODEL_SPECS in constants.ts) and the values here are
  * aggregated over every provider that lists that canonical model.
  *
  * Do not edit by hand. Run the script instead.

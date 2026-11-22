@@ -78,7 +78,7 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
           name: "云智助手",
           npm: WIRES[wire].npm,
           api: wire === "openai" ? OPENAI_BASE : ANTHROPIC_BASE,
-          models: modelsFor(wire),
+          models: {},
         }
       }
     },
@@ -86,17 +86,13 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
     provider: {
       id: PROVIDER_ID,
 
-      async models(provider: { models?: Record<string, unknown> }, ctx: { auth?: unknown } = {}) {
-        const wire = wireProtocol()
-        const declared =
-          provider?.models && Object.keys(provider.models).length > 0
-            ? provider.models
-            : modelsFor(wire)
-        if (!ctx?.auth) return declared
+      async models(_provider: { models?: Record<string, unknown> }, ctx: { auth?: unknown } = {}) {
+        if (!ctx?.auth) return {}
 
         const auth = asStoredAuth(ctx.auth)
-        if (!auth) return declared
+        if (!auth) return {}
 
+        const wire = wireProtocol()
         try {
           const session = sessionOf(auth, deps)
           const client = await session.ensureClient(auth)
@@ -108,9 +104,9 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
           if (e instanceof LoginRefusedError) {
             throw Object.assign(new Error(`${errText(e)}，请重新登录`), { signIn: "expired" })
           }
-          // 上游清单暂不可用：保留声明列表（magpie 视为 fallback）
-          log("warn", `eaichat: 模型列表获取失败，使用内置回退清单（${errText(e)}）`)
-          return declared
+          // 拉取失败就是空列表
+          log("warn", `eaichat: 模型列表获取失败，本次返回空列表（${errText(e)}）`)
+          return {}
         }
       },
     },

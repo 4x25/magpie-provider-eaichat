@@ -44,46 +44,24 @@ export const DAILY_TASK_ID = 3001
 /** Token 任务列表 displayTypes 过滤值。 */
 export const TOKEN_TASK_DISPLAY_TYPE = 5
 /**
- * 已知上游模型 → 回退展示名与 models.dev 规范模型 id。
+ * 已知上游模型 → models.dev 规范模型 id。
  *
- * 运行期模型清单以上游 `/platform/cp/models` 为准；这里只在 config 钩子
- * （还没有登录态）和拉取失败时作为回退清单，同时给已登录模型提供
- * models.dev 元数据。上下文、最大输出、多模态与思考档位不在这里写死，
- * 由 `npm run update:models` 从 models.dev 的规范模型条目生成。
+ * 只用于把上游清单里的模型对上 models.dev 元数据（上下文、最大输出、
+ * 多模态与思考档位），**不是**模型清单：对外提供的模型列表完全来自
+ * 上游 `/platform/cp/models`。新增映射后运行 `npm run update:models`。
  */
-export interface ModelInfo {
+export interface ModelSpec {
   id: string
-  name: string
   /** models.dev 的 `canonical_model_id`（如 deepseek/deepseek-v4.1-flash）。 */
   canonical: string
 }
 
-export const MODEL_IDS: ModelInfo[] = [
-  {
-    id: "deepseek-v4.1-flash",
-    name: "DeepSeek-V4.1-Flash-1017",
-    canonical: "deepseek/deepseek-v4.1-flash",
-  },
-  {
-    id: "glm-5.3-flash",
-    name: "GLM-5.3-Flash",
-    canonical: "zhipuai/glm-5.3-flash",
-  },
-  {
-    id: "deepseek-v4-pro-0813-oc",
-    name: "DeepSeek-V4-Pro-0813",
-    canonical: "deepseek/deepseek-v4-pro-0813",
-  },
-  {
-    id: "glm-5.3-oc",
-    name: "GLM-5.3",
-    canonical: "zhipuai/glm-5.3",
-  },
-  {
-    id: "qwen-3.8-flash",
-    name: "Qwen-3.8-Flash",
-    canonical: "alibaba/qwen3.8-flash",
-  },
+export const MODEL_SPECS: ModelSpec[] = [
+  { id: "deepseek-v4.1-flash", canonical: "deepseek/deepseek-v4.1-flash" },
+  { id: "glm-5.3-flash", canonical: "zhipuai/glm-5.3-flash" },
+  { id: "deepseek-v4-pro-0813-oc", canonical: "deepseek/deepseek-v4-pro-0813" },
+  { id: "glm-5.3-oc", canonical: "zhipuai/glm-5.3" },
+  { id: "qwen-3.8-flash", canonical: "alibaba/qwen3.8-flash" },
 ]
 
 /** Anthropic Messages 基地址（不含 /v1，网关会补 /v1/messages）。 */

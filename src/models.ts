@@ -3,7 +3,7 @@
  * 上游没有提供上下文/输出/思考档位，这部分仍来自 models.dev 生成的元数据；
  * 未知模型退化为保守默认值。
  */
-import { ANTHROPIC_BASE, MODEL_IDS, OPENAI_BASE, type ModelInfo } from "./constants.ts"
+import { ANTHROPIC_BASE, MODEL_SPECS, OPENAI_BASE } from "./constants.ts"
 import { MODEL_METADATA, type Modality, type ModelMetadata } from "./model-metadata.ts"
 import type { EaiModel } from "./eaichat.ts"
 
@@ -37,9 +37,9 @@ const UNKNOWN_METADATA: ModelMetadata = {
   sourceEntries: 0,
 }
 
-const SPECS = new Map(MODEL_IDS.map((model) => [model.id, model]))
+const SPECS = new Map(MODEL_SPECS.map((model) => [model.id, model]))
 
-type DisplayModel = Pick<ModelInfo, "id" | "name">
+type DisplayModel = Pick<EaiModel, "id" | "name">
 
 /** 上游声明了端点时，按声明过滤；没声明（空）视为两种协议都可用。 */
 export function supportsProtocol(model: EaiModel, protocol: WireProtocol): boolean {
@@ -89,23 +89,19 @@ export function modelEntry(model: DisplayModel, wire: Wire) {
 }
 
 /**
- * 全量模型表。
- * 传入上游清单时按清单生成（并按协议过滤），否则退回内置清单
- * （config 钩子没有登录态，只能用回退清单）。
+ * 全量模型表：只包含上游清单里的模型（并按协议过滤）。
+ * 空清单就是空表。
  */
 export function modelsFor(
   protocol: WireProtocol,
-  upstream?: readonly EaiModel[] | null,
+  upstream: readonly EaiModel[],
 ): Record<string, ReturnType<typeof modelEntry>> {
   const wire = WIRES[protocol]
-  const source: readonly DisplayModel[] =
-    upstream && upstream.length > 0
-      ? upstream
-          .filter((model) => supportsProtocol(model, protocol))
-          .map((model) => ({
-            id: model.id,
-            name: model.name || SPECS.get(model.id)?.name || model.id,
-          }))
-      : MODEL_IDS
+  const source: readonly DisplayModel[] = upstream
+    .filter((model) => supportsProtocol(model, protocol))
+    .map((model) => ({
+      id: model.id,
+      name: model.name || model.id,
+    }))
   return Object.fromEntries(source.map((model) => [model.id, modelEntry(model, wire)]))
 }
