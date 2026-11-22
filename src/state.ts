@@ -5,7 +5,7 @@
 import { API_KEY_NAME, MODELS_TTL_MS, USAGE_TTL_MS } from "./constants.ts"
 import { EaiChatClient, keyOfCreated, type EaiModel, type EaiTokenUsage } from "./eaichat.ts"
 import { sha256Hex } from "./crypto.ts"
-import { LoginRefusedError, UpstreamError, isRecord, toTrimmedString } from "./util.ts"
+import { LoginRefusedError, UpstreamError, errText, isRecord, toTrimmedString } from "./util.ts"
 
 /** plugin-auth.json 中保存的登录信息（type: "oauth"）。
  *
@@ -268,9 +268,4 @@ export function sessionOf(auth: StoredAuth, deps: SessionDeps): AccountSession {
     sessions.set(auth.userHash, s)
   }
   return s
-}
-
-export function errText(e: unknown): string {
-  if (e instanceof Error) return e.message
-  return String(e)
 }

@@ -2,7 +2,7 @@ import { strict as assert } from "node:assert"
 import { test } from "node:test"
 import EAIChatPlugin from "../src/index.ts"
 import { sha256Hex } from "../src/crypto.ts"
-import { dailyTask, fakeJwt, makeFakeUpstream } from "./helpers.ts"
+import { dailyTask, fakeJwt, makeFakeUpstream, streakTask } from "./helpers.ts"
 import { API_KEY_NAME, PROVIDER_ID } from "../src/constants.ts"
 
 const USER = "13800000000@example.com"
@@ -199,6 +199,60 @@ test("checkin：可领取 → claimed", async () => {
   })
 })
 
+test("checkin：每日签到后自动领取连续7天奖励", async () => {
+  await withFake(async (fake) => {
+    fake.state.tasks = [dailyTask(), streakTask()]
+    fake.state.onReceive = (taskDefId) => {
+      fake.state.tasks =
+        taskDefId === 3001
+          ? [dailyTask({ canReceive: false, status: 2 }), streakTask()]
+          : [
+              dailyTask({ canReceive: false, status: 2 }),
+              streakTask({ canReceive: true, status: 2, receiveDate: Date.now() }),
+            ]
+    }
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const r = (await hooks.auth.checkin(async () => auth)) as Record<string, unknown>
+    assert.equal(r.outcome, "claimed")
+    assert.equal(r.credit, 1_100_000)
+    assert.equal(r.streak, 7)
+    assert.match(r.message as string, /连续7天签到奖励/)
+    assert.equal(fake.counters.receivePoints, 2)
+
+    const receives = fake.requests.filter((req) => req.url.includes("/userPoints/receivePointsV2"))
+    assert.match(receives[0].url, /taskDefId=3001/)
+    assert.match(receives[1].url, /taskDefId=3002&progress=7/)
+  })
+})
+
+test("checkin：今日已签到时补领连续7天奖励", async () => {
+  await withFake(async (fake) => {
+    fake.state.tasks = [dailyTask({ canReceive: false, status: 2 }), streakTask()]
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const r = (await hooks.auth.checkin(async () => auth)) as Record<string, unknown>
+    assert.equal(r.outcome, "claimed")
+    assert.equal(r.credit, 1_000_000)
+    assert.equal(r.streak, 7)
+    assert.equal(fake.counters.receivePoints, 1)
+  })
+})
+
+test("checkin：连续7天奖励领取后 canReceive 仍为 true 也不重复领取", async () => {
+  await withFake(async (fake) => {
+    fake.state.tasks = [
+      dailyTask({ canReceive: false, status: 2 }),
+      streakTask({ canReceive: true, status: 2, receiveDate: Date.now() }),
+    ]
+    const { hooks } = await makePlugin()
+    const auth = await signInAs(hooks)
+    const r = (await hooks.auth.checkin(async () => auth)) as Record<string, unknown>
+    assert.equal(r.outcome, "done")
+    assert.equal(fake.counters.receivePoints, 0)
+  })
+})
+
 test("checkin：已签到 → done，不重复领取", async () => {
   await withFake(async (fake) => {
     fake.state.tasks = [dailyTask({ canReceive: false, status: 2 })]
@@ -214,11 +268,14 @@ test("checkin：领取被拒（重复签到）→ 复查后 done", async () => {
   await withFake(async (fake) => {
     fake.state.tasks = [dailyTask()]
     fake.state.receiveRefusal = "今日已签到"
+    fake.state.onReceiveRefused = (taskDefId) => {
+      if (taskDefId === 3001) fake.state.tasks = [dailyTask({ canReceive: false, status: 2 })]
+    }
     const { hooks } = await makePlugin()
     const auth = await signInAs(hooks)
-    fake.state.tasks = [dailyTask({ canReceive: false })]
     const r = (await hooks.auth.checkin(async () => auth)) as Record<string, unknown>
     assert.equal(r.outcome, "done")
+    assert.equal(fake.counters.receivePoints, 1)
   })
 })
 

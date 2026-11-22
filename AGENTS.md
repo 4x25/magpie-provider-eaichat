@@ -50,6 +50,7 @@ npm run update:models   # 从 models.dev 重新生成 src/model-metadata.ts
 - 用量接口上游拼写就是 `usage/summry`（不是 summary）。
 - API Key 列表（`platform/cp/apiKeys`）会回显完整密钥（`apiKey` 字段）；`addApiKey` 响应字段名未实测，代码做了多候选兼容。
 - 每日签到任务 `taskDefId=3001`，领取接口是 `receivePointsV2`，`progress` 传任务当前的 `currentProgress`。
+- 连续 7 天签到任务 `taskDefId=3002`（2026-11-21 HAR 实测），领取请求为 `receivePointsV2?taskDefId=3002&progress=<currentProgress>`（实测为 7）。**领取后上游仍返回 `canReceive: true`**，必须用 `status=2`（此时 `receiveDate` 同时有值）判断已领取；每日签到会推进进度，因此领完 3001 后要重新拉一次任务列表再判断 3002。3001 仍按 `canReceive` 判断（领取后上游返回 `canReceive:false`），不要把 3002 的 `status` 规则套到 3001。
 - 出网 DNS 经常抖动（getaddrinfo ETIMEOUT），实机脚本和登录路径都有重试；偶发失败先重试再排查。
 - 登录链路没有 refresh token：续登 = 用密码摘要重走完整 IAM→CAS→ticketAuthorize。IAM 要的密码就是 SHA-256 摘要，因此持久化的摘要即凭据。
 

@@ -8,6 +8,7 @@ import { resolve } from "node:path"
 import { EaiChatClient, keyOfCreated } from "../src/eaichat.ts"
 import { sha256Hex } from "../src/crypto.ts"
 import { API_KEY_NAME } from "../src/constants.ts"
+import { runCheckin } from "../src/checkin.ts"
 import { mapUpstreamUrl } from "../src/relay.ts"
 
 function loadEnv(): { username: string; password: string } {
@@ -82,23 +83,25 @@ async function main() {
     `total=${usage.totalTokens} used=${usage.usedTokens} exp=${usage.expTokens} remain=${usage.remainTokens}`,
   )
 
-  console.log("== 5. 每日签到 ==")
+  console.log("== 5. 每日签到（含连续7天奖励） ==")
   const tasks = await retry("getTaskList", () => client.getTokenTasks())
-  const daily = tasks.find((t) => t.taskDefId === 3001)
-  if (!daily) {
-    console.log(`任务列表 ${tasks.length} 项，未找到每日签到任务；任务名：${tasks.map((t) => t.taskDefName).join("、")}`)
-  } else {
+  if (tasks.length === 0) console.log("任务列表为空")
+  for (const task of tasks) {
     console.log(
-      `每日签到：canReceive=${daily.canReceive} status=${daily.status} progress=${daily.currentProgress} reward=${daily.reward} checkedDays=${daily.checkedDays}`,
+      `  ${task.taskDefId} ${task.taskDefName}：canReceive=${task.canReceive} status=${task.status} progress=${task.currentProgress} reward=${task.reward} checkedDays=${task.checkedDays}`,
     )
-    if (daily.canReceive) {
-      await retry("receivePointsV2", () => client.receivePoints(3001, daily.currentProgress))
-      console.log(`签到成功：+${daily.reward}`)
-      const after = await retry("usage 复查", () => client.getTokenUsage())
-      console.log(`复查用量：total=${after.totalTokens} used=${after.usedTokens} remain=${after.remainTokens}`)
-    } else {
-      console.log("今日已签到，跳过")
-    }
+  }
+  const outcome = await retry("checkin", () =>
+    runCheckin({
+      readTasks: () => client.getTokenTasks(),
+      receive: (taskDefId, progress) => client.receivePoints(taskDefId, progress),
+      log: (message) => console.log(`  警告：${message}`),
+    }),
+  )
+  console.log(`签到结果：${outcome.outcome}，${outcome.message}`)
+  if (outcome.outcome === "claimed") {
+    const after = await retry("usage 复查", () => client.getTokenUsage())
+    console.log(`复查用量：total=${after.totalTokens} used=${after.usedTokens} remain=${after.remainTokens}`)
   }
 
   if (noChat) {

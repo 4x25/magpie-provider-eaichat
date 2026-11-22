@@ -3,19 +3,19 @@
  *
  * - 登录：账号 + 密码（IAM→CAS→ticketAuthorize），API Key 可选（留空自动查/建）
  * - 自动续登：auth.refresh（到期前重走登录链路）
- * - 每日签到：auth.checkin（taskDefId=3001，经 magpie 的签到调度）
+ * - 每日签到：auth.checkin（taskDefId=3001，并自动领取连续 7 天奖励 taskDefId=3002）
  * - 用量显示：auth.usage（platform/cp/usage/summry）
  * - 模型转发：loader.fetch，默认 Anthropic Messages，可用插件开关切换 OpenAI Chat
  */
-import { ANTHROPIC_BASE, API_KEY_NAME, DAILY_TASK_ID, OPENAI_BASE, PROVIDER_ID } from "./constants.ts"
+import { ANTHROPIC_BASE, API_KEY_NAME, OPENAI_BASE, PROVIDER_ID } from "./constants.ts"
 import { EaiChatClient, keyOfCreated } from "./eaichat.ts"
-import { asStoredAuth, buildAuth, errText, sessionOf, type StoredAuth } from "./state.ts"
+import { asStoredAuth, buildAuth, sessionOf, type StoredAuth } from "./state.ts"
 import { modelsFor, WIRES, type WireProtocol } from "./models.ts"
 import { usageOf } from "./usage.ts"
-import { claimedOf, planCheckin, planToOutcome, settleAfterRefused } from "./checkin.ts"
+import { runCheckin } from "./checkin.ts"
 import { relayFetch } from "./relay.ts"
 import { sha256Hex } from "./crypto.ts"
-import { LoginRefusedError, UpstreamError, toTrimmedString } from "./util.ts"
+import { LoginRefusedError, UpstreamError, errText, toTrimmedString } from "./util.ts"
 
 /** 到期前 6 小时触发续登。 */
 const REFRESH_LEAD_MS = 6 * 60 * 60 * 1000
@@ -270,28 +270,17 @@ export async function EAIChatPlugin(input: MagpieInput = {}, options: PluginOpti
         if (!auth) return { outcome: "failed", message: "未登录" }
         const session = sessionOf(auth, deps)
 
-        let tasks
         try {
-          tasks = await session.withSessionRetry(auth, (c) => c.getTokenTasks())
+          return await runCheckin({
+            readTasks: () => session.withSessionRetry(auth, (c) => c.getTokenTasks()),
+            receive: (taskDefId, progress) =>
+              session.withSessionRetry(auth, (c) => c.receivePoints(taskDefId, progress)),
+            log: (message) => log("warn", `eaichat: ${message}`),
+          })
         } catch (e) {
           if (e instanceof LoginRefusedError) {
             return { outcome: "failed", message: `${errText(e)}，请重新登录` }
           }
-          return { outcome: "failed", message: errText(e) }
-        }
-
-        const plan = planCheckin(tasks)
-        if (plan.kind !== "claim") return planToOutcome(plan)
-
-        try {
-          await session.withSessionRetry(auth, (c) => c.receivePoints(DAILY_TASK_ID, plan.progress))
-          return claimedOf(plan.credit, plan.streak)
-        } catch (e) {
-          // 业务拒绝（多为重复签到）：复查任务状态后再定性
-          const again = await session
-            .withSessionRetry(auth, (c) => c.getTokenTasks())
-            .catch(() => null)
-          if (again) return settleAfterRefused(again, errText(e))
           return { outcome: "failed", message: errText(e) }
         }
       },

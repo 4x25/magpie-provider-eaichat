@@ -15,6 +15,11 @@ export function toTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : ""
 }
 
+export function errText(e: unknown): string {
+  if (e instanceof Error) return e.message
+  return String(e)
+}
+
 /** 上游错误：code 为上游错误码（HTTP 状态码或业务码），-1 表示网络/未知。 */
 export class UpstreamError extends Error {
   readonly code: number

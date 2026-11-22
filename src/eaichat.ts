@@ -38,6 +38,7 @@ export interface EaiTokenTask {
   taskDefId: number
   taskDefName: string
   currentProgress: number
+  /** 任务实例状态：2 表示已领取（连续7天签到领取后 canReceive 仍可能为 true）。 */
   status: number
   canReceive: boolean
   reward: number

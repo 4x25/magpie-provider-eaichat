@@ -26,6 +26,10 @@ export interface FakeState {
   addKeyEchoes: boolean
   /** receivePointsV2 的拒绝文案（空 = 成功）。 */
   receiveRefusal: string
+  /** 领取成功后、返回响应前触发（用于模拟任务状态变化）。 */
+  onReceive?: (taskDefId: number) => void
+  /** 领取被拒后、返回响应前触发。 */
+  onReceiveRefused?: (taskDefId: number) => void
 }
 
 export function fakeJwt(expiresMs: number): string {
@@ -142,8 +146,10 @@ export function makeFakeUpstream() {
       if (url.includes("/userPoints/receivePointsV2")) {
         counters.receivePoints++
         if (state.receiveRefusal) {
+          state.onReceiveRefused?.(Number(new URL(url).searchParams.get("taskDefId")))
           return json({ resultCode: 0, data: { code: -1, msg: state.receiveRefusal, data: false } })
         }
+        state.onReceive?.(Number(new URL(url).searchParams.get("taskDefId")))
         return json({ resultCode: 0, data: { code: 0, data: true } })
       }
       if (url.endsWith("/platform/cp/models")) {
@@ -189,6 +195,27 @@ export function dailyTask(overrides: Record<string, unknown> = {}): Record<strin
     isSatisfiedCondition: true,
     receiveProgressMap: { "2026-11-11": 1 },
     taskSort: 1,
+    ...overrides,
+  }
+}
+
+/** 构造一个「连续7天签到」任务行（上游领取后 canReceive 仍可能为 true，靠 status=2 判断已领）。 */
+export function streakTask(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    taskDefId: 3002,
+    taskDefName: "连续7天签到",
+    taskCalendarType: 57,
+    pointsList: [{ type: 600, typeDesc: "TOKEN通用积分", value: 1_000_000 }],
+    currentProgress: 7,
+    totalProgress: 7,
+    status: 1,
+    canReceive: true,
+    isSatisfiedCondition: true,
+    receiveProgressMap: { "1": 1, "2": 1, "3": 1, "4": 1, "5": 1, "6": 1, "7": 1 },
+    receiveProgressUnit: 7,
+    receiveStartProgress: 7,
+    receiveDate: null,
+    taskSort: 2,
     ...overrides,
   }
 }

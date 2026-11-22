@@ -41,6 +41,8 @@ export const MODELS_TTL_MS = 60_000
 
 /** 每日签到任务 taskDefId（网页「每日签到」）。 */
 export const DAILY_TASK_ID = 3001
+/** 连续 7 天签到奖励任务 taskDefId（网页「连续7天签到」；领取后 canReceive 仍可能为 true）。 */
+export const STREAK_TASK_ID = 3002
 /** Token 任务列表 displayTypes 过滤值。 */
 export const TOKEN_TASK_DISPLAY_TYPE = 5
 /**

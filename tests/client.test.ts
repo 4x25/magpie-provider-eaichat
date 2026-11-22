@@ -3,7 +3,7 @@ import { test } from "node:test"
 import { EaiChatClient, keyOfCreated } from "../src/eaichat.ts"
 import { sha256Hex } from "../src/crypto.ts"
 import { UpstreamError } from "../src/util.ts"
-import { dailyTask, fakeJwt, makeFakeUpstream } from "./helpers.ts"
+import { dailyTask, fakeJwt, makeFakeUpstream, streakTask } from "./helpers.ts"
 import { API_KEY_NAME } from "../src/constants.ts"
 
 const USER = "13800000000@example.com"
@@ -65,13 +65,26 @@ test("任务列表解析：字段归一 + 奖励累加 + 连续天数", async ()
   await client.login({ userAccount: USER, passwordDigest: digest("correct-password") })
   fake.state.tasks = [
     dailyTask({ pointsList: [{ type: 600, typeDesc: "TOKEN", value: 100_000 }, { type: 601, typeDesc: "BONUS", value: 50_000 }], receiveProgressMap: { a: 1, b: 1, c: 0 } }),
-    { taskDefId: 3002, taskDefName: "邀请好友", pointsList: [], currentProgress: 0, canReceive: false },
+    { taskDefId: 3003, taskDefName: "邀请好友", pointsList: [], currentProgress: 0, canReceive: false },
   ]
   const tasks = await client.getTokenTasks()
   assert.equal(tasks.length, 2)
   assert.equal(tasks[0].reward, 150_000)
   assert.equal(tasks[0].checkedDays, 2)
   assert.equal(tasks[0].canReceive, true)
+})
+
+test("任务列表解析：连续7天签到领取后 canReceive 仍为 true、status=2", async () => {
+  const { fake, client } = makeClient()
+  await client.login({ userAccount: USER, passwordDigest: digest("correct-password") })
+  fake.state.tasks = [streakTask({ canReceive: true, status: 2, receiveDate: Date.now() })]
+  const tasks = await client.getTokenTasks()
+  assert.equal(tasks.length, 1)
+  assert.equal(tasks[0].taskDefId, 3002)
+  assert.equal(tasks[0].canReceive, true)
+  assert.equal(tasks[0].status, 2)
+  assert.equal(tasks[0].reward, 1_000_000)
+  assert.equal(tasks[0].checkedDays, 7)
 })
 
 test("API Key 列表解析：records 形状 + 字段别名", async () => {

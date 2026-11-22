@@ -1,9 +1,9 @@
 import { strict as assert } from "node:assert"
 import { test } from "node:test"
-import { AccountSession, asStoredAuth, buildAuth, errText } from "../src/state.ts"
+import { AccountSession, asStoredAuth, buildAuth } from "../src/state.ts"
 import { EaiChatClient } from "../src/eaichat.ts"
 import { sha256Hex } from "../src/crypto.ts"
-import { UpstreamError } from "../src/util.ts"
+import { errText, UpstreamError } from "../src/util.ts"
 import { dailyTask, fakeJwt, makeFakeUpstream } from "./helpers.ts"
 import { API_KEY_NAME } from "../src/constants.ts"
 
